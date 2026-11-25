@@ -1,0 +1,4 @@
+# Design mockups are references, not app code: keep them out of the
+# language statistics so the bar shows the real stack.
+design/*.html linguist-documentation
+brand/preview.html linguist-documentation

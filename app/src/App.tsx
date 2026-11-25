@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./App.css";
 
 interface ScanNode {
@@ -75,10 +76,40 @@ function hue(s: string): number {
 
 const REPO = "https://github.com/yourbossdonpely/oscleaner";
 
+const THEMES: Record<View, string> = {
+  care: "theme-care",
+  disk: "theme-disk",
+  clutter: "theme-clutter",
+  about: "theme-about",
+};
+
+function Titlebar() {
+  const win = getCurrentWindow();
+  return (
+    <div className="titlebar" data-tauri-drag-region>
+      <img src="/icon.png" alt="" draggable={false} />
+      <span>OS Cleaner</span>
+      <div className="winbtns">
+        <button onClick={() => win.minimize().catch(() => {})} aria-label="Minimize">
+          —
+        </button>
+        <button onClick={() => win.toggleMaximize().catch(() => {})} aria-label="Maximize">
+          ⛶
+        </button>
+        <button className="x" onClick={() => win.close().catch(() => {})} aria-label="Close">
+          ✕
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [view, setView] = useState<View>("care");
   return (
-    <div className="app">
+    <div className={`app ${THEMES[view]}`}>
+      <Titlebar />
+      <div className="body">
       <aside className="side">
         <div className="brand">
           <img src="/icon.png" alt="OS Cleaner" />
@@ -107,6 +138,7 @@ export default function App() {
         {view === "clutter" && <MyClutter />}
         {view === "about" && <About />}
       </main>
+      </div>
     </div>
   );
 }
@@ -202,10 +234,11 @@ function SmartCare() {
 
   return (
     <div>
-      <div className="topbar">
-        <div>
+      <div className="heroband">
+        <img src="/icon.png" alt="" className="heroicon" draggable={false} />
+        <div className="herotext">
           <h1>Smart Care</h1>
-          <p>Scan everything, see what&apos;s eating your disk.</p>
+          <p>One scan for everything — junk, clutter, and space hogs.</p>
         </div>
         <span className="vtag">v0.2</span>
       </div>

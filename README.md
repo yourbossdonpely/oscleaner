@@ -1,19 +1,68 @@
+<div align="center">
+
+<img src="brand/os-cleaner-icon-512.png" alt="OS Cleaner app icon" width="112" />
+
 # OS Cleaner by Don Pely
+
+**Deep disk insight plus one-click care, on Windows, macOS and Linux.**
+
+[![License: MIT](https://img.shields.io/github/license/yourbossdonpely/oscleaner)](LICENSE)
+[![Desktop app](https://img.shields.io/badge/desktop-Tauri%202%20%C2%B7%20Windows%20%7C%20macOS%20%7C%20Linux-E80FB2)](#download)
+[![Release](https://img.shields.io/github/v/release/yourbossdonpely/oscleaner)](https://github.com/yourbossdonpely/oscleaner/releases)
+[![Rust](https://img.shields.io/badge/Rust-stable-CE422B?logo=rust)](app/src-tauri/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript)](app/src/)
+
+[Download](#download) · [Screenshots](#screenshots) · [Features](#features) · [Build it yourself](#8-develop)
+
+</div>
+
+**OS Cleaner** answers *"what is eating my disk?"* and safely removes what is
+genuinely waste. Every risky action is backed up first or explicitly approved —
+no scare tactics, no deletions without evidence. The safety model comes from
+real cleanups: [bloat.md](./bloat.md) is the full session log this app grew out of.
 
 > **Desktop name:** OS Cleaner. **In-app / installer name:** OS Cleaner by Don Pely.
 
-A cross-platform, open-source (MIT) system cleaner and disk analyzer for
-Windows, macOS, and Linux. Deep disk insight plus one-click care, with
-a safety model proven in real cleanups (see [bloat.md](./bloat.md) for
-the full session log this grew out of).
+## Download
 
-**Framework:** Tauri 2 — Rust backend + React UI.
-**License:** MIT. **Releases:** GitHub releases + tags + About page.
+| Platform | File |
+|----------|------|
+| Windows | [`Setup exe`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.2.0/OS.Cleaner_0.2.0_x64-setup.exe) (NSIS installer) · [`MSI`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.2.0/OS.Cleaner_0.2.0_x64_en-US.msi) |
+| macOS (Intel + Apple Silicon) | [`DMG`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.2.0/OS.Cleaner_0.2.0_universal.dmg) (universal, ad-hoc signed) |
+| Linux | [`AppImage`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.2.0/OS.Cleaner_0.2.0_amd64.AppImage) · [`DEB`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.2.0/OS.Cleaner_0.2.0_amd64.deb) · [`RPM`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.2.0/OS.Cleaner-0.2.0-1.x86_64.rpm) |
 
-![Smart Care screen (v0.2)](./docs/screenshots/v0.2-smart-care.png)
+All releases live on the [releases page](https://github.com/yourbossdonpely/oscleaner/releases).
 
-Download installers from
-[GitHub releases](https://github.com/yourbossdonpely/oscleaner/releases).
+> Installers are not code-signed yet: Windows SmartScreen may warn (More info
+> → Run anyway); on macOS right-click → Open on first launch (builds are not
+> notarized).
+
+## Screenshots
+
+![Smart Care screen](docs/screenshots/smart-care.png)
+![Disk Insight screen](docs/screenshots/disk-insight.png)
+![My Clutter screen](docs/screenshots/my-clutter.png)
+
+## Features
+
+| Area | Status | What it does |
+|------|--------|--------------|
+| Smart Care scan | ✅ v0.1 | Totals, file/folder counts, largest folders |
+| Disk table | ✅ v0.1 | Sortable, expandable, % of parent |
+| Hardlink-aware sizing | ✅ v0.1 | Unique files counted once, never double-counted |
+| Treemap | ✅ v0.2 | Click-to-drill size map |
+| Largest + oldest files | ✅ v0.2 | Top-100 tracking during every scan |
+| Hash-based duplicates | ✅ v0.2 | BLAKE3 content matching, size-prefiltered |
+| Universal macOS | ✅ v0.2 | One binary for Intel + Apple Silicon |
+| Custom chrome + per-page themes | 🔨 on main | Rounded frameless window, every page its color |
+| Trash-first delete | ⬜ next (v0.3) | Preview → approve → recycle bin, never silent delete |
+| Installer orphans | ⬜ planned | Zero-reference cached installers, backup-first |
+| Stale drivers | ⬜ planned | Superseded driver packages, active-driver check |
+| Component store | ⬜ planned | Supported cleanup APIs only |
+| AppX cleanup | ⬜ planned | Targeted removals, system packages blocklisted |
+| Container bases | ⬜ planned | Orphaned images via supported removal |
+| Remnant sweep | ⬜ planned | Dead logs, empty dirs, leftover data |
+| Tray monitor + auto-update | ⬜ planned | Health nudges, signed updates |
 
 ---
 

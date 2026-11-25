@@ -14,7 +14,10 @@
       {
         "title": "OS Cleaner",
         "width": 1200,
-        "height": 800
+        "height": 800,
+        "transparent": true,
+        "decorations": false,
+        "shadow": true
       }
     ],
     "security": {
