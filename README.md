@@ -196,5 +196,4 @@ cargo test --manifest-path src-tauri/Cargo.toml  # Rust unit tests
 ```
 
 CI (`.github/workflows/build.yml`) builds Windows, macOS, and Linux
-on every push; pushing a `v*` tag attaches the bundles to a draft
-GitHub release.
+for every `v*` tag and attaches the bundles to a draft GitHub release.

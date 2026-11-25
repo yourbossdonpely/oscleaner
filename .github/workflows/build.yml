@@ -2,13 +2,19 @@ name: Build app
 
 on:
   push:
-    branches: [main]
     tags: ['v*']
-  pull_request:
+  workflow_dispatch:
+
+# One release at a time, and never cancel a run halfway through uploading assets.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
     name: Build (${{ matrix.os }})
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -22,14 +28,14 @@ jobs:
 
       - name: Install Linux webview deps
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev
+        # squashfs-tools packs the AppImage; the rest is the documented
+        # Debian list for WebKitGTK 4.1 plus standard build tools.
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file zip xvfb dbus-x11 libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev squashfs-tools
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: 22
           cache: npm
           cache-dependency-path: app/package-lock.json
 
@@ -41,14 +47,15 @@ jobs:
         run: npm ci
 
       - name: Build with Tauri Action
-        uses: tauri-apps/tauri-action@v1
+        uses: tauri-apps/tauri-action@944946e3e4cac6603d1fe8f514171e9ecd3c78aa # v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: app
-          tagName: v__VERSION__
-          releaseName: 'OS Cleaner v__VERSION__'
+          tagName: ${{ github.ref_name }}
+          releaseName: 'OS Cleaner ${{ github.ref_name }}'
           releaseBody: 'See the assets below to download and install this version.'
           releaseDraft: true
+          retryAttempts: 3
           uploadUpdaterJson: false
           uploadUpdaterSignatures: false
