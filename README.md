@@ -10,6 +10,11 @@ the full session log this grew out of).
 **Framework:** Tauri 2 — Rust backend + React UI.
 **License:** MIT. **Releases:** GitHub releases + tags + About page.
 
+![Smart Care screen (v0.1)](./docs/screenshots/v0.1-smart-care.png)
+
+Download installers from
+[GitHub releases](https://github.com/yourbossdonpely/oscleaner/releases).
+
 ---
 
 ## 1. Vision
@@ -155,8 +160,8 @@ Duplicate skill ids exist, so load by full path:
 0. (done) Branding + UX concepts: owner logo with gold seal
    (`brand/`), Smart Care dial concept (`design/meter.html`),
    reference screens, disk-table study.
-1. Scaffold Tauri 2 + React + TS + Tailwind; CI builds all OSes.
-2. Rust parallel scanner + treemap UI + hardlink-correct sizes.
+1. (done in v0.1.0) Scaffold Tauri 2 + React + TS + Tailwind; CI builds all OSes.
+2. (started) Serial hardlink-aware scanner + sortable table; parallel + treemap next.
 3. Windows Safe module set (§2.3) with backup-first + approve flow.
 4. Premium visual pass + logo/icon + dark mode.
 5. Beta: dogfood on real machines (this PC first), MIT release v0.1.
@@ -177,3 +182,19 @@ Duplicate skill ids exist, so load by full path:
 3. macOS signing/notarization + Windows code signing certs?
 4. Target Rust/MSRV + Node versions at scaffold time.
 5. Which Linux distros/formats first (Ubuntu DEB + AppImage)?
+
+## 8. Develop
+
+Prereqs: Rust stable (MSVC toolchain on Windows), Node 20+.
+
+```sh
+cd app
+npm install
+npm run tauri dev    # run the app in development
+npm run tauri build  # installer bundles (NSIS/MSI, DMG, AppImage/DEB)
+cargo test --manifest-path src-tauri/Cargo.toml  # Rust unit tests
+```
+
+CI (`.github/workflows/build.yml`) builds Windows, macOS, and Linux
+on every push; pushing a `v*` tag attaches the bundles to a draft
+GitHub release.
