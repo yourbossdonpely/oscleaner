@@ -41,7 +41,7 @@ jobs:
         run: npm ci
 
       - name: Build with Tauri Action
-        uses: tauri-apps/tauri-action@v5
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -50,3 +50,5 @@ jobs:
           releaseName: 'OS Cleaner v__VERSION__'
           releaseBody: 'See the assets below to download and install this version.'
           releaseDraft: true
+          uploadUpdaterJson: false
+          uploadUpdaterSignatures: false
