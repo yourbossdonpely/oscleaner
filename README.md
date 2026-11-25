@@ -126,7 +126,7 @@ Microsoft primary sources and executed safely:
 | Module | What it does | Safety model |
 |---|---|---|
 | Installer orphans | Finds cached .msi/.msp with zero registry references (LocalPackage scan, HKLM+HKCU) | Move to backup folder first; delete after bake period |
-| Stale drivers | Finds superseded DriverStore packages (pnputil), verifies active driver | Never touch in-use; identity re-check at runtime |
+| Stale drivers | Finds superseded DriverStore packages (pnputil), verifies active driver | Never touch in-use; identity re-check at runtime; never downloads or stores drivers — Windows Update remains the only source |
 | Component store | DISM StartComponentCleanup (no ResetBase default) | Supported API only; never hand-delete WinSxS |
 | AppX debloat | Per-app removal + provisioned copies, curated lists | System/framework packages blocklisted; user picks |
 | Container bases | Detects orphaned Windows container/Sandbox images | Supported removal (feature/prune), never hand-delete |
