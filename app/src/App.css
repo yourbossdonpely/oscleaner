@@ -863,6 +863,186 @@ tr.picked td {
   filter: brightness(1.06);
 }
 
+/* ---------- v0.4: module themes ---------- */
+.theme-orphans {
+  --accent: #ea580c;
+  --accent2: #f59e0b;
+  --accent-rgb: 234, 88, 12;
+  --bg1: #fff7ed;
+  --bg2: #ffedd5;
+}
+
+.theme-sweep {
+  --accent: #7c3aed;
+  --accent2: #2563eb;
+  --accent-rgb: 124, 58, 237;
+  --bg1: #f5f3ff;
+  --bg2: #ede9fe;
+}
+
+/* ---------- v0.4: dark mode ---------- */
+.app.dark {
+  --ink: #e8eaf6;
+  --muted: #9aa3c7;
+  --card: #1a2154;
+  --line: rgba(255, 255, 255, 0.12);
+  --bg1: #141a45;
+  --bg2: #0a0e28;
+}
+
+.app.dark .side {
+  background: rgba(10, 14, 40, 0.72);
+}
+
+.app.dark .pathinput {
+  background: #10153a;
+  color: var(--ink);
+}
+
+.app.dark .pathinput:focus {
+  background: #10153a;
+}
+
+.app.dark .btn {
+  background: #232b63;
+  color: #fff;
+}
+
+.app.dark .pill {
+  background: #10153a;
+}
+
+.app.dark .pill.on {
+  background: #232b63;
+}
+
+.app.dark .dtable tbody tr:hover {
+  background: rgba(var(--accent-rgb), 0.12);
+}
+
+.app.dark .dupgroup,
+.app.dark .modallist {
+  background: #10153a;
+}
+
+.app.dark .modal {
+  background: #1a2154;
+}
+
+.app.dark .reviewbar {
+  background: #232b63;
+}
+
+.app.dark .tab {
+  background: #10153a;
+}
+
+.app.dark .treemap {
+  background: #10153a;
+}
+
+.app.dark .tmrect {
+  stroke: #1a2154;
+}
+
+.app.dark .topbar-track {
+  background: #10153a;
+}
+
+.app.dark .vtag {
+  background: #10153a;
+}
+
+.app.dark .titlebar {
+  color: #e8eaf6;
+}
+
+.app.dark .winbtns button {
+  color: #e8eaf6;
+}
+
+.app.dark .winbtns button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.app.dark .err {
+  background: #3a1410;
+  border-color: #7a2a22;
+  color: #ffb4ab;
+}
+
+.app.dark .heroband {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.sidefoot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.themebtn {
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 15px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  line-height: 1;
+  flex: none;
+}
+
+.themebtn:hover {
+  color: var(--accent);
+  border-color: rgba(var(--accent-rgb), 0.45);
+}
+
+/* ---------- v0.4: modules ---------- */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-color: rgba(var(--accent-rgb), 0.4);
+}
+
+.banner .btn {
+  margin-left: auto;
+  flex: none;
+}
+
+.btnrow {
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.agerow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.ageinput {
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: #f6f4ff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px 10px;
+  width: 70px;
+}
+
+.app.dark .ageinput {
+  background: #10153a;
+}
+
 /* ---------- about ---------- */
 .about {
   max-width: 560px;

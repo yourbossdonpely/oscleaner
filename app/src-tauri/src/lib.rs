@@ -5,7 +5,7 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
 use jwalk::WalkDir;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -66,6 +66,7 @@ pub struct DupReport {
 pub struct Roots {
     roots: Vec<String>,
     home: String,
+    temp: String,
 }
 
 fn unix_secs(t: SystemTime) -> u64 {
@@ -292,7 +293,11 @@ fn list_roots() -> Roots {
     let home = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
         .unwrap_or_default();
-    Roots { roots, home }
+    Roots {
+        roots,
+        home,
+        temp: std::env::temp_dir().to_string_lossy().into_owned(),
+    }
 }
 
 #[tauri::command]
@@ -526,6 +531,420 @@ fn trash_delete(paths: Vec<String>) -> Result<TrashReport, String> {
     })
 }
 
+// ---- Installer orphans (Windows) ----
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct OrphanEntry {
+    name: String,
+    path: String,
+    size: u64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrphanReport {
+    orphans: Vec<OrphanEntry>,
+    total_bytes: u64,
+    scanned: u64,
+    referenced: u64,
+}
+
+fn lower(p: &str) -> String {
+    p.replace('/', "\\").to_lowercase()
+}
+
+fn expand_env(s: &str) -> String {
+    let mut out = s.to_string();
+    loop {
+        let Some(a) = out.find('%') else {
+            break;
+        };
+        let Some(rel) = out[a + 1..].find('%') else {
+            break;
+        };
+        let b = a + 1 + rel;
+        let name = out[a + 1..b].to_string();
+        let val = std::env::var(&name).unwrap_or_default();
+        out.replace_range(a..=b, &val);
+    }
+    out
+}
+
+#[cfg(windows)]
+fn collect_local_packages() -> HashSet<String> {
+    use winreg::enums::*;
+    use winreg::RegKey;
+    fn walk(key: &RegKey, out: &mut HashSet<String>) {
+        if let Ok(v) = key.get_value::<String, _>("LocalPackage") {
+            out.insert(lower(&expand_env(&v)));
+        }
+        for name in key.enum_keys().flatten() {
+            if let Ok(sub) = key.open_subkey(&name) {
+                walk(&sub, out);
+            }
+        }
+    }
+    let mut out = HashSet::new();
+    for (hive, path) in [
+        (
+            HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData",
+        ),
+        (
+            HKEY_CURRENT_USER,
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Installer",
+        ),
+    ] {
+        if let Ok(root) = RegKey::predef(hive).open_subkey(path) {
+            walk(&root, &mut out);
+        }
+    }
+    out
+}
+
+fn find_orphans(
+    cached: &[(String, PathBuf, u64)],
+    referenced: &HashSet<String>,
+) -> Vec<OrphanEntry> {
+    let mut orphans: Vec<OrphanEntry> = cached
+        .iter()
+        .filter(|(norm, _, _)| !referenced.contains(norm))
+        .map(|(_, p, size)| OrphanEntry {
+            name: node_name(p),
+            path: p.to_string_lossy().into_owned(),
+            size: *size,
+        })
+        .collect();
+    orphans.sort_by(|a, b| b.size.cmp(&a.size));
+    orphans
+}
+
+#[cfg(windows)]
+const INSTALLER_DIR: &str = r"C:\Windows\Installer";
+#[cfg(windows)]
+const ORPHAN_BACKUP_DIR: &str = r"C:\Installer-Orphans-Backup";
+
+#[tauri::command]
+fn scan_installer_orphans() -> Result<OrphanReport, String> {
+    #[cfg(not(windows))]
+    {
+        return Err("Installer orphans: Windows only.".to_string());
+    }
+    #[cfg(windows)]
+    {
+        let dir = Path::new(INSTALLER_DIR);
+        let entries =
+            std::fs::read_dir(dir).map_err(|e| format!("Cannot read {}: {e}", dir.display()))?;
+        let mut cached: Vec<(String, PathBuf, u64)> = Vec::new();
+        for e in entries.flatten() {
+            let p = e.path();
+            let ext = p
+                .extension()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_lowercase();
+            if ext != "msi" && ext != "msp" {
+                continue;
+            }
+            let size = e.metadata().map(|m| m.len()).unwrap_or(0);
+            cached.push((lower(&p.to_string_lossy()), p, size));
+        }
+        let referenced = collect_local_packages();
+        let scanned = cached.len() as u64;
+        let orphans = find_orphans(&cached, &referenced);
+        let total_bytes = orphans.iter().map(|o| o.size).sum();
+        Ok(OrphanReport {
+            orphans,
+            total_bytes,
+            scanned,
+            referenced: referenced.len() as u64,
+        })
+    }
+}
+
+/// Move files into a backup dir. Every path must live under `allowed_root`.
+fn move_paths_to_backup(
+    paths: &[String],
+    backup: &Path,
+    allowed_root: &Path,
+) -> Result<TrashReport, String> {
+    if paths.is_empty() {
+        return Err("Nothing to move.".to_string());
+    }
+    if paths.len() > TRASH_CAP {
+        return Err(format!("Refusing: too many at once ({} max).", TRASH_CAP));
+    }
+    std::fs::create_dir_all(backup)
+        .map_err(|e| format!("Cannot create {}: {e}", backup.display()))?;
+    let allowed = lexical_normal(allowed_root);
+    let mut results: Vec<TrashItem> = Vec::with_capacity(paths.len());
+    let mut trashed: u64 = 0;
+    let mut failed: u64 = 0;
+    for path in paths {
+        let p = Path::new(path);
+        let norm = lexical_normal(p);
+        if !norm.starts_with(&allowed) {
+            results.push(TrashItem {
+                path: path.clone(),
+                ok: false,
+                error: format!("Refusing: outside {}", allowed.display()),
+            });
+            failed += 1;
+            continue;
+        }
+        let dest = backup.join(p.file_name().unwrap_or_default());
+        match std::fs::rename(p, &dest) {
+            Ok(()) => {
+                results.push(TrashItem {
+                    path: path.clone(),
+                    ok: true,
+                    error: String::new(),
+                });
+                trashed += 1;
+            }
+            Err(e) => {
+                results.push(TrashItem {
+                    path: path.clone(),
+                    ok: false,
+                    error: e.to_string(),
+                });
+                failed += 1;
+            }
+        }
+    }
+    Ok(TrashReport {
+        results,
+        trashed,
+        failed,
+    })
+}
+
+#[tauri::command]
+fn backup_orphans(paths: Vec<String>) -> Result<TrashReport, String> {
+    #[cfg(not(windows))]
+    {
+        let _ = paths;
+        return Err("Installer orphans: Windows only.".to_string());
+    }
+    #[cfg(windows)]
+    {
+        move_paths_to_backup(&paths, Path::new(ORPHAN_BACKUP_DIR), Path::new(INSTALLER_DIR))
+    }
+}
+
+#[tauri::command]
+fn list_orphan_backup() -> Result<Vec<FileEntry>, String> {
+    #[cfg(not(windows))]
+    {
+        return Err("Installer orphans: Windows only.".to_string());
+    }
+    #[cfg(windows)]
+    {
+        let dir = Path::new(ORPHAN_BACKUP_DIR);
+        if !dir.exists() {
+            return Ok(vec![]);
+        }
+        let mut out: Vec<FileEntry> = Vec::new();
+        for e in std::fs::read_dir(dir)
+            .map_err(|e| format!("Cannot read {}: {e}", dir.display()))?
+            .flatten()
+        {
+            let p = e.path();
+            if !e.file_type().map(|t| t.is_file()).unwrap_or(false) {
+                continue;
+            }
+            let (size, modified) = e
+                .metadata()
+                .map(|m| (m.len(), m.modified().map(unix_secs).unwrap_or(0)))
+                .unwrap_or((0, 0));
+            out.push(file_entry(&p, size, modified));
+        }
+        out.sort_by(|a, b| b.size.cmp(&a.size));
+        Ok(out)
+    }
+}
+
+#[tauri::command]
+fn restore_orphans(paths: Vec<String>) -> Result<TrashReport, String> {
+    #[cfg(not(windows))]
+    {
+        let _ = paths;
+        return Err("Installer orphans: Windows only.".to_string());
+    }
+    #[cfg(windows)]
+    {
+        move_paths_to_backup(
+            &paths,
+            Path::new(INSTALLER_DIR),
+            Path::new(ORPHAN_BACKUP_DIR),
+        )
+    }
+}
+
+// ---- Remnant sweep ----
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RemnantEntry {
+    name: String,
+    path: String,
+    size: u64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemnantReport {
+    empty_dirs: Vec<RemnantEntry>,
+    stale_files: Vec<RemnantEntry>,
+    errors: u64,
+}
+
+const REMNANT_CAP: usize = 2000;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemnantOptions {
+    root: String,
+    min_age_days: u64,
+}
+
+#[tauri::command]
+fn scan_remnants(options: RemnantOptions) -> Result<RemnantReport, String> {
+    let min_age_days = options.min_age_days;
+    let root = Path::new(&options.root);
+    if !root.is_dir() {
+        return Err(format!("Pick a folder: {}", root.display()));
+    }
+    let cutoff = SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(
+            min_age_days.saturating_mul(86400),
+        ))
+        .unwrap_or(UNIX_EPOCH);
+    let mut empty_dirs: Vec<RemnantEntry> = Vec::new();
+    let mut stale_files: Vec<RemnantEntry> = Vec::new();
+    let mut errors: u64 = 0;
+    'walk: for entry in WalkDir::new(root)
+        .min_depth(1)
+        .follow_links(false)
+        .into_iter()
+    {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => {
+                errors += 1;
+                continue;
+            }
+        };
+        let ftype = entry.file_type();
+        if ftype.is_symlink() {
+            continue;
+        }
+        if empty_dirs.len() + stale_files.len() >= REMNANT_CAP {
+            break 'walk;
+        }
+        let p = entry.path();
+        if ftype.is_dir() {
+            match std::fs::read_dir(&p) {
+                Ok(mut it) => {
+                    if it.next().is_none() {
+                        empty_dirs.push(RemnantEntry {
+                            name: node_name(&p),
+                            path: p.to_string_lossy().into_owned(),
+                            size: 0,
+                        });
+                    }
+                }
+                Err(_) => {
+                    errors += 1;
+                }
+            }
+        } else if ftype.is_file() {
+            let ext = p
+                .extension()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_lowercase();
+            if ext != "tmp" && ext != "log" && ext != "bak" {
+                continue;
+            }
+            match p.metadata() {
+                Ok(m) => {
+                    let old = m.modified().map(|t| t < cutoff).unwrap_or(false);
+                    if old {
+                        stale_files.push(RemnantEntry {
+                            name: node_name(&p),
+                            path: p.to_string_lossy().into_owned(),
+                            size: m.len(),
+                        });
+                    }
+                }
+                Err(_) => {
+                    errors += 1;
+                }
+            }
+        }
+    }
+    stale_files.sort_by(|a, b| b.size.cmp(&a.size));
+    Ok(RemnantReport {
+        empty_dirs,
+        stale_files,
+        errors,
+    })
+}
+
+// ---- Elevation ----
+
+#[tauri::command]
+fn is_elevated() -> bool {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::UI::Shell::IsUserAnAdmin;
+        unsafe { IsUserAnAdmin() != 0 }
+    }
+    #[cfg(not(windows))]
+    {
+        false
+    }
+}
+
+#[tauri::command]
+fn restart_elevated() -> Result<(), String> {
+    #[cfg(not(windows))]
+    {
+        return Err("Elevation relaunch: Windows only.".to_string());
+    }
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::UI::Shell::ShellExecuteW;
+        use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+        fn wide(s: &str) -> Vec<u16> {
+            s.encode_utf16().chain(std::iter::once(0)).collect()
+        }
+        let exe =
+            std::env::current_exe().map_err(|e| format!("No exe path: {e}"))?;
+        let op = wide("runas");
+        let file = wide(&exe.to_string_lossy());
+        let ret = unsafe {
+            ShellExecuteW(
+                std::ptr::null_mut(),
+                op.as_ptr(),
+                file.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                SW_SHOWNORMAL,
+            )
+        };
+        if (ret as isize) <= 32 {
+            return Err(format!(
+                "Elevation relaunch failed (code {}).",
+                ret as isize
+            ));
+        }
+        Ok(())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -534,7 +953,14 @@ pub fn run() {
             scan_dir,
             list_roots,
             find_duplicates,
-            trash_delete
+            trash_delete,
+            scan_installer_orphans,
+            backup_orphans,
+            list_orphan_backup,
+            restore_orphans,
+            scan_remnants,
+            is_elevated,
+            restart_elevated
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -675,5 +1101,85 @@ mod tests {
         assert!(trash_delete(vec![]).is_err());
         let big = vec!["C:\\x".to_string(); TRASH_CAP + 1];
         assert!(trash_delete(big).is_err());
+    }
+
+    #[test]
+    fn orphan_matching_is_case_insensitive() {
+        let cached = vec![
+            (
+                "c:\\windows\\installer\\a.msi".to_string(),
+                PathBuf::from("C:\\Windows\\Installer\\a.msi"),
+                100,
+            ),
+            (
+                "c:\\windows\\installer\\b.msi".to_string(),
+                PathBuf::from("C:\\Windows\\Installer\\b.msi"),
+                200,
+            ),
+        ];
+        let mut referenced = HashSet::new();
+        referenced.insert("c:\\windows\\installer\\b.msi".to_string());
+        let orphans = find_orphans(&cached, &referenced);
+        assert_eq!(orphans.len(), 1);
+        assert_eq!(orphans[0].size, 100);
+    }
+
+    #[test]
+    fn env_expansion_works() {
+        unsafe { std::env::set_var("OC_TEST_VAR", "hello") };
+        assert_eq!(expand_env("%OC_TEST_VAR%\\x"), "hello\\x");
+        assert_eq!(expand_env("plain"), "plain");
+        assert_eq!(expand_env("%OC_TEST_MISSING_zzz%"), "");
+    }
+
+    #[test]
+    fn backup_roundtrip_stays_inside_allowed_root() {
+        let dir = std::env::temp_dir().join(format!("oc-test-{}-backup", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let src = dir.join("src");
+        let backup = dir.join("backup");
+        fs::create_dir_all(&src).unwrap();
+        fs::write(src.join("x.msi"), vec![1u8; 10]).unwrap();
+        let rep = move_paths_to_backup(
+            &[src.join("x.msi").to_string_lossy().into_owned()],
+            &backup,
+            &src,
+        )
+        .unwrap();
+        assert_eq!(rep.trashed, 1);
+        assert!(backup.join("x.msi").exists());
+        assert!(!src.join("x.msi").exists());
+        let outside = std::env::temp_dir().join("oc-test-outside-x.msi");
+        fs::write(&outside, vec![1u8; 5]).unwrap();
+        let rep2 = move_paths_to_backup(
+            &[outside.to_string_lossy().into_owned()],
+            &backup,
+            &src,
+        )
+        .unwrap();
+        assert_eq!(rep2.failed, 1);
+        assert!(outside.exists());
+        let _ = fs::remove_dir_all(&dir);
+        let _ = fs::remove_file(&outside);
+    }
+
+    #[test]
+    fn remnants_find_empty_dirs_and_stale_temps() {
+        let dir = std::env::temp_dir().join(format!("oc-test-{}-remnant", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("empty1")).unwrap();
+        fs::create_dir_all(dir.join("full")).unwrap();
+        fs::write(dir.join("full").join("keep.txt"), b"no").unwrap();
+        fs::write(dir.join("old.tmp"), b"tmp").unwrap();
+        fs::write(dir.join("old.log"), b"log").unwrap();
+        let rep = scan_remnants(RemnantOptions {
+            root: dir.to_string_lossy().into_owned(),
+            min_age_days: 0,
+        })
+        .unwrap();
+        assert_eq!(rep.empty_dirs.len(), 1);
+        assert_eq!(rep.empty_dirs[0].name, "empty1");
+        assert_eq!(rep.stale_files.len(), 2);
+        let _ = fs::remove_dir_all(&dir);
     }
 }

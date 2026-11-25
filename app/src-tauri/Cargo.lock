@@ -983,7 +983,7 @@ dependencies = [
  "rustc_version",
  "toml 1.2.3+spec-1.1.0",
  "vswhom",
- "winreg",
+ "winreg 0.56.0",
 ]
 
 [[package]]
@@ -2589,7 +2589,7 @@ dependencies = [
 
 [[package]]
 name = "os-cleaner"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "blake3",
  "jwalk",
@@ -2600,6 +2600,7 @@ dependencies = [
  "tauri-plugin-opener",
  "trash",
  "windows-sys 0.60.2",
+ "winreg 0.5.1",
 ]
 
 [[package]]
@@ -5007,6 +5008,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c3b93199df0ab874cdf0c6a94f0a0dc3423fe41f1cafb62b8bd7b1deb277aef"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "winreg"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a27a759395c1195c4cc5cda607ef6f8f6498f64e78f7900f5de0a127a424704a"
+dependencies = [
+ "winapi",
 ]
 
 [[package]]

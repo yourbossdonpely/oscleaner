@@ -49,9 +49,35 @@ interface TrashReport {
 interface Roots {
   roots: string[];
   home: string;
+  temp: string;
 }
 
-type View = "care" | "disk" | "clutter" | "about";
+interface OrphanEntry {
+  name: string;
+  path: string;
+  size: number;
+}
+
+interface OrphanReport {
+  orphans: OrphanEntry[];
+  totalBytes: number;
+  scanned: number;
+  referenced: number;
+}
+
+interface RemnantEntry {
+  name: string;
+  path: string;
+  size: number;
+}
+
+interface RemnantReport {
+  emptyDirs: RemnantEntry[];
+  staleFiles: RemnantEntry[];
+  errors: number;
+}
+
+type View = "care" | "disk" | "clutter" | "orphans" | "sweep" | "about";
 
 function fmtBytes(n: number): string {
   if (!Number.isFinite(n) || n < 0) return "—";
@@ -92,6 +118,8 @@ const THEMES: Record<View, string> = {
   care: "theme-care",
   disk: "theme-disk",
   clutter: "theme-clutter",
+  orphans: "theme-orphans",
+  sweep: "theme-sweep",
   about: "theme-about",
 };
 
@@ -118,8 +146,26 @@ function Titlebar() {
 
 export default function App() {
   const [view, setView] = useState<View>("care");
+  const [dark, setDark] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("oc-theme") === "dark";
+    } catch {
+      return false;
+    }
+  });
+  function toggleDark() {
+    setDark((d) => {
+      const n = !d;
+      try {
+        localStorage.setItem("oc-theme", n ? "dark" : "light");
+      } catch {
+        /* private mode: don't persist */
+      }
+      return n;
+    });
+  }
   return (
-    <div className={`app ${THEMES[view]}`}>
+    <div className={`app ${THEMES[view]}${dark ? " dark" : ""}`}>
       <Titlebar />
       <div className="body">
       <aside className="side">
@@ -136,18 +182,28 @@ export default function App() {
           <div className="cap">INSIGHT</div>
           <NavBtn id="disk" view={view} setView={setView} label="Disk Insight" icon="▦" />
           <NavBtn id="clutter" view={view} setView={setView} label="My Clutter" icon="⧉" />
+          <div className="cap">MODULES</div>
+          <NavBtn id="orphans" view={view} setView={setView} label="Installer Orphans" icon="▤" />
+          <NavBtn id="sweep" view={view} setView={setView} label="Remnant Sweep" icon="❖" />
           <button className="navbtn" disabled title="Coming in v0.3">
             <span className="ni">◧</span>App Leftovers<span className="soon">soon</span>
           </button>
           <div className="cap">APP</div>
           <NavBtn id="about" view={view} setView={setView} label="About" icon="ⓘ" />
         </nav>
-        <div className="sidefoot">v0.3.0 · scan + safe delete</div>
+        <div className="sidefoot">
+          <span>v0.4.0 · cleaner modules</span>
+          <button className="themebtn" onClick={toggleDark} title="Toggle dark mode">
+            {dark ? "☀" : "◐"}
+          </button>
+        </div>
       </aside>
       <main className="main">
         {view === "care" && <SmartCare />}
         {view === "disk" && <DiskInsight />}
         {view === "clutter" && <MyClutter />}
+        {view === "orphans" && <OrphansScreen />}
+        {view === "sweep" && <SweepScreen />}
         {view === "about" && <About />}
       </main>
       </div>
@@ -174,7 +230,7 @@ function NavBtn(props: {
 }
 
 function useRoots(def: (r: Roots) => string) {
-  const [roots, setRoots] = useState<Roots>({ roots: [], home: "" });
+  const [roots, setRoots] = useState<Roots>({ roots: [], home: "", temp: "" });
   const [path, setPath] = useState("");
   useEffect(() => {
     invoke<Roots>("list_roots")
@@ -252,7 +308,7 @@ function SmartCare() {
           <h1>Smart Care</h1>
           <p>One scan for everything — junk, clutter, and space hogs.</p>
         </div>
-        <span className="vtag">v0.3</span>
+        <span className="vtag">v0.4</span>
       </div>
       <div className="card hero">
         <div className="scanrow">
@@ -400,7 +456,7 @@ function DiskInsight() {
           <h1>Disk Insight</h1>
           <p>Browse folders by real size — table or treemap.</p>
         </div>
-        <span className="vtag">v0.3</span>
+        <span className="vtag">v0.4</span>
       </div>
       <div className="card hero">
         <div className="scanrow">
@@ -705,6 +761,7 @@ function FileTable({
 function ReviewBar(props: {
   count: number;
   bytes: number;
+  cta: string;
   onReview: () => void;
   onClear: () => void;
 }) {
@@ -715,7 +772,7 @@ function ReviewBar(props: {
         <b>{props.count}</b> selected · {fmtBytes(props.bytes)}
       </span>
       <button className="btn primary" onClick={props.onReview}>
-        Review &amp; delete
+        {props.cta}
       </button>
       <button className="linkbtn" onClick={props.onClear}>
         Clear
@@ -724,11 +781,32 @@ function ReviewBar(props: {
   );
 }
 
+const ACTION_COPY = {
+  trash: {
+    title: "Move to trash?",
+    blurb:
+      "They will be moved to the recycle bin — recoverable, never permanently deleted.",
+    confirm: (n: number) => `Move ${n} to trash`,
+  },
+  backup: {
+    title: "Move to backup?",
+    blurb:
+      "They will be moved to the backup folder. Restore them any time below.",
+    confirm: (n: number) => `Move ${n} to backup`,
+  },
+  restore: {
+    title: "Restore from backup?",
+    blurb: "They will be moved back to their original folder.",
+    confirm: (n: number) => `Restore ${n}`,
+  },
+};
+
 function ConfirmModal(props: {
   paths: string[];
   bytes: number;
   busy: boolean;
   report: TrashReport | null;
+  action: "trash" | "backup" | "restore";
   onConfirm: () => void;
   onClose: () => void;
 }) {
@@ -737,11 +815,10 @@ function ConfirmModal(props: {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         {props.report === null ? (
           <>
-            <h2>Move to trash?</h2>
+            <h2>{ACTION_COPY[props.action].title}</h2>
             <p className="muted">
-              {props.paths.length} files ({fmtBytes(props.bytes)}) will be
-              moved to the recycle bin — recoverable, never permanently
-              deleted.
+              {props.paths.length} files ({fmtBytes(props.bytes)}).{" "}
+              {ACTION_COPY[props.action].blurb}
             </p>
             <div className="modallist">
               {props.paths.map((p) => (
@@ -754,8 +831,12 @@ function ConfirmModal(props: {
               <button className="btn" onClick={props.onClose} disabled={props.busy}>
                 Cancel
               </button>
-              <button className="btn danger" onClick={props.onConfirm} disabled={props.busy}>
-                {props.busy ? "Moving…" : `Move ${props.paths.length} to trash`}
+              <button
+                className={props.action === "trash" ? "btn danger" : "btn primary"}
+                onClick={props.onConfirm}
+                disabled={props.busy}
+              >
+                {props.busy ? "Working…" : ACTION_COPY[props.action].confirm(props.paths.length)}
               </button>
             </div>
           </>
@@ -905,7 +986,7 @@ function MyClutter() {
           <h1>My Clutter</h1>
           <p>Large files, old files, and true duplicates by content hash.</p>
         </div>
-        <span className="vtag">v0.3</span>
+        <span className="vtag">v0.4</span>
       </div>
       <div className="card hero">
         <div className="scanrow">
@@ -994,6 +1075,7 @@ function MyClutter() {
         <ReviewBar
           count={selPaths.length}
           bytes={selBytes}
+          cta="Review & delete"
         onReview={() => {
           setReport(null);
           setConfirming(true);
@@ -1007,6 +1089,483 @@ function MyClutter() {
           bytes={selBytes}
           busy={busy === "trash"}
           report={report}
+          action="trash"
+          onConfirm={() => void doTrash()}
+          onClose={closeModal}
+        />
+      )}
+    </div>
+  );
+}
+
+function useElevated() {
+  const [elevated, setElevated] = useState<boolean | null>(null);
+  useEffect(() => {
+    invoke<boolean>("is_elevated")
+      .then(setElevated)
+      .catch(() => setElevated(false));
+  }, []);
+  return elevated;
+}
+
+function AdminBanner(props: { onRestart: () => void; busy: boolean }) {
+  return (
+    <div className="card banner">
+      <div>
+        <b>Administrator rights needed.</b>
+        <span className="muted">
+          {" "}This module touches system folders. Scanning works now; moving
+          files needs an elevated restart.
+        </span>
+      </div>
+      <button className="btn primary" onClick={props.onRestart} disabled={props.busy}>
+        {props.busy ? "Restarting…" : "Restart as administrator"}
+      </button>
+    </div>
+  );
+}
+
+function OrphansScreen() {
+  const elevated = useElevated();
+  const [report, setReport] = useState<OrphanReport | null>(null);
+  const [backup, setBackup] = useState<FileEntry[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selBackup, setSelBackup] = useState<Set<string>>(new Set());
+  const [confirming, setConfirming] = useState<null | "backup" | "restore">(null);
+  const [rep, setRep] = useState<TrashReport | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [unsupported, setUnsupported] = useState(false);
+
+  async function refresh() {
+    const r = await invoke<OrphanReport>("scan_installer_orphans");
+    setReport(r);
+    const b = await invoke<FileEntry[]>("list_orphan_backup").catch(
+      () => [] as FileEntry[]
+    );
+    setBackup(b);
+  }
+
+  async function runScan() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await refresh();
+    } catch (e) {
+      const msg = errText(e);
+      if (msg.includes("Windows only")) setUnsupported(true);
+      else setError(msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function goElevated() {
+    setBusy(true);
+    try {
+      await invoke("restart_elevated");
+      await getCurrentWindow().close();
+    } catch (e) {
+      setError(errText(e));
+      setBusy(false);
+    }
+  }
+
+  function toggle(set: Set<string>, apply: (s: Set<string>) => void, path: string) {
+    const c = new Set(set);
+    if (c.has(path)) c.delete(path);
+    else c.add(path);
+    apply(c);
+  }
+
+  const selPaths = [...selected];
+  const selBytes = selPaths.reduce((s, p) => {
+    const f = report?.orphans.find((o) => o.path === p);
+    return s + (f?.size ?? 0);
+  }, 0);
+  const selBakPaths = [...selBackup];
+  const selBakBytes = selBakPaths.reduce((s, p) => {
+    const f = backup.find((o) => o.path === p);
+    return s + (f?.size ?? 0);
+  }, 0);
+
+  async function doBackup() {
+    if (selPaths.length === 0 || busy) return;
+    setBusy(true);
+    try {
+      const r = await invoke<TrashReport>("backup_orphans", { paths: selPaths });
+      setRep(r);
+      await refresh();
+    } catch (e) {
+      setError(errText(e));
+      setConfirming(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doRestore() {
+    if (selBakPaths.length === 0 || busy) return;
+    setBusy(true);
+    try {
+      const r = await invoke<TrashReport>("restore_orphans", { paths: selBakPaths });
+      setRep(r);
+      await refresh();
+    } catch (e) {
+      setError(errText(e));
+      setConfirming(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function closeModal() {
+    setConfirming(null);
+    setRep(null);
+    setSelected(new Set());
+    setSelBackup(new Set());
+  }
+
+  return (
+    <div>
+      <div className="topbar">
+        <div>
+          <h1>Installer Orphans</h1>
+          <p>Cached installers nothing references — move to backup first.</p>
+        </div>
+        <span className="vtag">v0.4</span>
+      </div>
+      {unsupported ? (
+        <div className="card note">
+          This module reads the Windows installer cache, so it only runs on
+          Windows.
+        </div>
+      ) : (
+        <>
+          {elevated === false && (
+            <AdminBanner onRestart={() => void goElevated()} busy={busy} />
+          )}
+          <div className="card hero">
+            <div className="scanrow">
+              <button className="btn primary" onClick={() => void runScan()} disabled={busy}>
+                {busy ? "Scanning…" : "Scan installer cache"}
+              </button>
+            </div>
+            {error !== "" && <div className="err">{error}</div>}
+          </div>
+          {report && (
+            <>
+              <div className="stats">
+                <Stat label="Orphaned" value={fmtBytes(report.totalBytes)} />
+                <Stat label="Orphan files" value={fmtInt(report.orphans.length)} />
+                <Stat label="Cached files" value={fmtInt(report.scanned)} />
+                <Stat label="Referenced" value={fmtInt(report.referenced)} />
+              </div>
+              <div className="card tablecard">
+                <h2>Orphans — select to back up</h2>
+                {report.orphans.length === 0 ? (
+                  <p className="muted">No orphans. The cache is fully referenced.</p>
+                ) : (
+                  <table className="dtable">
+                    <thead>
+                      <tr>
+                        <th className="checkcol" />
+                        <th>Name</th>
+                        <th className="num">Size</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.orphans.map((o) => (
+                        <tr key={o.path} className={selected.has(o.path) ? "picked" : ""}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              className="check"
+                              checked={selected.has(o.path)}
+                              onChange={() => toggle(selected, setSelected, o.path)}
+                              aria-label={`Select ${o.name}`}
+                            />
+                          </td>
+                          <td>
+                            <span className="fname" title={o.path}>
+                              {o.name}
+                            </span>
+                          </td>
+                          <td className="num">{fmtBytes(o.size)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              {selected.size > 0 && (
+                <ReviewBar
+                  count={selPaths.length}
+                  bytes={selBytes}
+                  cta="Review & back up"
+                  onReview={() => {
+                    setRep(null);
+                    setConfirming("backup");
+                  }}
+                  onClear={() => setSelected(new Set())}
+                />
+              )}
+              <div className="card">
+                <h2>Backup folder</h2>
+                {backup.length === 0 ? (
+                  <p className="muted">Nothing backed up yet.</p>
+                ) : (
+                  <table className="dtable">
+                    <thead>
+                      <tr>
+                        <th className="checkcol" />
+                        <th>Name</th>
+                        <th className="num">Size</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {backup.map((f) => (
+                        <tr key={f.path} className={selBackup.has(f.path) ? "picked" : ""}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              className="check"
+                              checked={selBackup.has(f.path)}
+                              onChange={() => toggle(selBackup, setSelBackup, f.path)}
+                              aria-label={`Select ${f.name}`}
+                            />
+                          </td>
+                          <td>
+                            <span className="fname" title={f.path}>
+                              {f.name}
+                            </span>
+                          </td>
+                          <td className="num">{fmtBytes(f.size)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                {selBackup.size > 0 && (
+                  <div className="btnrow">
+                    <button
+                      className="btn primary"
+                      onClick={() => {
+                        setRep(null);
+                        setConfirming("restore");
+                      }}
+                    >
+                      Restore {selBackup.size} from backup
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+          {confirming !== null && (
+            <ConfirmModal
+              action={confirming}
+              paths={confirming === "backup" ? selPaths : selBakPaths}
+              bytes={confirming === "backup" ? selBytes : selBakBytes}
+              busy={busy}
+              report={rep}
+              onConfirm={() => void (confirming === "backup" ? doBackup() : doRestore())}
+              onClose={closeModal}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function SweepScreen() {
+  const { roots, path, setPath } = useRoots((r) => r.temp || r.home || r.roots[0] || "");
+  const [days, setDays] = useState("30");
+  const [rep, setRep] = useState<RemnantReport | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirming, setConfirming] = useState(false);
+  const [report, setReport] = useState<TrashReport | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function runScan() {
+    if (!path || busy) return;
+    setBusy(true);
+    setError("");
+    setRep(null);
+    try {
+      const n = Math.max(0, parseInt(days, 10) || 0);
+      const r = await invoke<RemnantReport>("scan_remnants", {
+        options: { root: path, minAgeDays: n },
+      });
+      setRep(r);
+    } catch (e) {
+      setError(errText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toggle(path: string) {
+    setSelected((s) => {
+      const c = new Set(s);
+      if (c.has(path)) c.delete(path);
+      else c.add(path);
+      return c;
+    });
+  }
+
+  const selPaths = [...selected];
+  const selBytes = selPaths.reduce((s, p) => {
+    const a = rep?.emptyDirs.find((e) => e.path === p);
+    if (a) return s + a.size;
+    const b = rep?.staleFiles.find((e) => e.path === p);
+    return s + (b?.size ?? 0);
+  }, 0);
+
+  async function doTrash() {
+    if (selPaths.length === 0 || busy) return;
+    setBusy(true);
+    try {
+      const r = await invoke<TrashReport>("trash_delete", { paths: selPaths });
+      setReport(r);
+      const gone = new Set(r.results.filter((x) => x.ok).map((x) => x.path));
+      if (gone.size > 0) {
+        setRep((d) =>
+          d === null
+            ? d
+            : {
+                ...d,
+                emptyDirs: d.emptyDirs.filter((e) => !gone.has(e.path)),
+                staleFiles: d.staleFiles.filter((e) => !gone.has(e.path)),
+              }
+        );
+      }
+    } catch (e) {
+      setError(errText(e));
+      setConfirming(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function closeModal() {
+    setConfirming(false);
+    setReport(null);
+    setSelected(new Set());
+  }
+
+  function remnantTable(entries: RemnantEntry[], showSize: boolean) {
+    if (entries.length === 0) return <p className="muted">None found.</p>;
+    return (
+      <table className="dtable">
+        <thead>
+          <tr>
+            <th className="checkcol" />
+            <th>Name</th>
+            {showSize && <th className="num">Size</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {entries.slice(0, 100).map((e) => (
+            <tr key={e.path} className={selected.has(e.path) ? "picked" : ""}>
+              <td>
+                <input
+                  type="checkbox"
+                  className="check"
+                  checked={selected.has(e.path)}
+                  onChange={() => toggle(e.path)}
+                  aria-label={`Select ${e.name}`}
+                />
+              </td>
+              <td>
+                <span className="fname" title={e.path}>
+                  {e.name}
+                </span>
+              </td>
+              {showSize && <td className="num">{fmtBytes(e.size)}</td>}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
+  return (
+    <div>
+      <div className="topbar">
+        <div>
+          <h1>Remnant Sweep</h1>
+          <p>Empty folders and stale temp files — preview, then trash.</p>
+        </div>
+        <span className="vtag">v0.4</span>
+      </div>
+      <div className="card hero">
+        <div className="scanrow">
+          <input
+            className="pathinput"
+            value={path}
+            onChange={(e) => setPath(e.target.value)}
+            placeholder="Folder to sweep…"
+            spellCheck={false}
+          />
+          <button className="btn primary" onClick={() => void runScan()} disabled={busy || !path}>
+            {busy ? "Sweeping…" : "Sweep"}
+          </button>
+        </div>
+        <div className="agerow">
+          Temp files older than
+          <input
+            className="ageinput"
+            value={days}
+            onChange={(e) => setDays(e.target.value)}
+            inputMode="numeric"
+            aria-label="Minimum age in days"
+          />
+          days (.tmp, .log, .bak)
+        </div>
+        <RootPills roots={roots} path={path} setPath={setPath} />
+        {busy && (
+          <div className="loading">
+            <span className="spin" />
+            Sweeping{path ? ` ${path}` : ""}…
+          </div>
+        )}
+        {error !== "" && <div className="err">{error}</div>}
+      </div>
+      {rep && (
+        <div className="cols">
+          <div className="card">
+            <h2>Empty folders ({rep.emptyDirs.length})</h2>
+            {remnantTable(rep.emptyDirs, false)}
+          </div>
+          <div className="card">
+            <h2>Stale temp files ({rep.staleFiles.length})</h2>
+            {remnantTable(rep.staleFiles, true)}
+          </div>
+        </div>
+      )}
+      {!confirming && (
+        <ReviewBar
+          count={selPaths.length}
+          bytes={selBytes}
+          cta="Review & delete"
+          onReview={() => {
+            setReport(null);
+            setConfirming(true);
+          }}
+          onClear={() => setSelected(new Set())}
+        />
+      )}
+      {confirming && (
+        <ConfirmModal
+          paths={selPaths}
+          bytes={selBytes}
+          busy={busy}
+          report={report}
+          action="trash"
           onConfirm={() => void doTrash()}
           onClose={closeModal}
         />
@@ -1027,11 +1586,11 @@ function About() {
       <div className="card about">
         <img src="/icon.png" alt="OS Cleaner" className="aboutlogo" />
         <h2>OS Cleaner</h2>
-        <p className="muted">by Don Pely · v0.3.0 · MIT License</p>
+        <p className="muted">by Don Pely · v0.4.0 · MIT License</p>
         <p>
-          A cross-platform system cleaner and disk analyzer. v0.3 scans
-          folders, maps them as a treemap, finds clutter — and deletes
-          to the recycle bin with preview-first approval, never silently.
+          A cross-platform system cleaner and disk analyzer. v0.4 hunts
+          installer orphans and remnant files with backup-first safety —
+          plus dark mode.
         </p>
         <button
           className="btn"
