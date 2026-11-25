@@ -10,7 +10,7 @@ the full session log this grew out of).
 **Framework:** Tauri 2 — Rust backend + React UI.
 **License:** MIT. **Releases:** GitHub releases + tags + About page.
 
-![Smart Care screen (v0.1)](./docs/screenshots/v0.1-smart-care.png)
+![Smart Care screen (v0.2)](./docs/screenshots/v0.2-smart-care.png)
 
 Download installers from
 [GitHub releases](https://github.com/yourbossdonpely/oscleaner/releases).
@@ -161,8 +161,8 @@ Duplicate skill ids exist, so load by full path:
    (`brand/`), Smart Care dial concept (`design/meter.html`),
    reference screens, disk-table study.
 1. (done in v0.1.0) Scaffold Tauri 2 + React + TS + Tailwind; CI builds all OSes.
-2. (started) Serial hardlink-aware scanner + sortable table; parallel + treemap next.
-3. Windows Safe module set (§2.3) with backup-first + approve flow.
+2. (done in v0.2.0) Hardlink-aware scanner + sortable table + treemap + My Clutter (largest/oldest/duplicates).
+3. (next, v0.3) Trash-first delete + first Safe cleaner modules with backup-first + approve flow.
 4. Premium visual pass + logo/icon + dark mode.
 5. Beta: dogfood on real machines (this PC first), MIT release v0.1.
 6. macOS modules, then Linux modules; auto-update; stores.

@@ -482,3 +482,133 @@ span.twisty {
   color: var(--muted);
   font-size: 14px;
 }
+
+/* ---------- tabs + treemap ---------- */
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.tab {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 20px;
+  cursor: pointer;
+}
+
+.tab.on {
+  color: var(--pink);
+  border-color: rgba(232, 15, 178, 0.45);
+}
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.crumb {
+  background: none;
+  border: none;
+  color: var(--pink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.sep {
+  color: var(--muted);
+}
+
+.treemap {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 12px;
+  background: #f6f4ff;
+}
+
+.tmrect {
+  cursor: pointer;
+  stroke: #fff;
+  stroke-width: 2;
+}
+
+.tmrect.leaf {
+  cursor: default;
+}
+
+.tmrect:hover {
+  filter: brightness(1.08);
+}
+
+.tmtitle {
+  fill: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.25);
+  stroke-width: 3px;
+  pointer-events: none;
+}
+
+.tmsize {
+  fill: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.25);
+  stroke-width: 3px;
+  pointer-events: none;
+}
+
+/* ---------- clutter ---------- */
+.cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+@media (max-width: 900px) {
+  .cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+.small {
+  font-size: 12px;
+}
+
+.dupgroup {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  background: #fbfaff;
+}
+
+.duphead {
+  font-weight: 800;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.dupfile {
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 0;
+}

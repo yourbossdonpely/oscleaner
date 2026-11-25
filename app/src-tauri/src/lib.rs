@@ -1,12 +1,19 @@
-// OS Cleaner v0.1 — directory scanner with hardlink-aware sizing.
+// OS Cleaner v0.2 — directory scanner with hardlink-aware sizing,
+// largest/oldest tracking, and hash-based duplicate detection.
 // Each unique file is counted once, however many names point at it
 // (the WinSxS lesson). Symlinks are never followed.
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
 use jwalk::WalkDir;
 use serde::Serialize;
-use std::collections::{HashMap, HashSet};
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+const TOP_N: usize = 100;
+const DUP_GROUP_CAP: usize = 500;
+const DUP_FILES_CAP: usize = 100;
 
 #[derive(Serialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
@@ -18,6 +25,15 @@ struct Agg {
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct FileEntry {
+    name: String,
+    path: String,
+    size: u64,
+    modified: u64,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ScanNode {
     name: String,
     path: String,
@@ -25,7 +41,24 @@ pub struct ScanNode {
     files: u64,
     dirs: u64,
     errors: u64,
+    largest: Vec<FileEntry>,
+    oldest: Vec<FileEntry>,
     children: Vec<ScanNode>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DupGroup {
+    hash: String,
+    size: u64,
+    files: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DupReport {
+    groups: Vec<DupGroup>,
+    errors: u64,
 }
 
 #[derive(Serialize)]
@@ -33,6 +66,12 @@ pub struct ScanNode {
 pub struct Roots {
     roots: Vec<String>,
     home: String,
+}
+
+fn unix_secs(t: SystemTime) -> u64 {
+    t.duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 /// Stable identity for a file: (volume, file index).
@@ -73,6 +112,15 @@ fn node_name(path: &Path) -> String {
         .unwrap_or_else(|| path.to_string_lossy().into_owned())
 }
 
+fn file_entry(path: &Path, size: u64, modified: u64) -> FileEntry {
+    FileEntry {
+        name: node_name(path),
+        path: path.to_string_lossy().into_owned(),
+        size,
+        modified,
+    }
+}
+
 fn scan_path(root: &Path) -> Result<ScanNode, String> {
     let root_md = root
         .metadata()
@@ -85,6 +133,8 @@ fn scan_path(root: &Path) -> Result<ScanNode, String> {
             files: 1,
             dirs: 0,
             errors: 0,
+            largest: vec![],
+            oldest: vec![],
             children: vec![],
         });
     }
@@ -94,6 +144,8 @@ fn scan_path(root: &Path) -> Result<ScanNode, String> {
 
     let mut seen: HashSet<(u64, u64)> = HashSet::new();
     let mut buckets: HashMap<PathBuf, Agg> = HashMap::new();
+    let mut largest: BinaryHeap<Reverse<(u64, u64, PathBuf)>> = BinaryHeap::new();
+    let mut oldest: BinaryHeap<(SystemTime, PathBuf, u64)> = BinaryHeap::new();
     let mut total = Agg::default();
     let mut errors: u64 = 0;
 
@@ -143,6 +195,27 @@ fn scan_path(root: &Path) -> Result<ScanNode, String> {
             total.size += md.len();
             agg.files += 1;
             agg.size += md.len();
+            // Track largest files (min-heap on size, capped).
+            let mtime = md.modified().map(unix_secs).unwrap_or(0);
+            if largest.len() < TOP_N {
+                largest.push(Reverse((md.len(), mtime, entry.path())));
+            } else if let Some(Reverse((smallest, _, _))) = largest.peek() {
+                if md.len() > *smallest {
+                    largest.pop();
+                    largest.push(Reverse((md.len(), mtime, entry.path())));
+                }
+            }
+            // Track oldest files (max-heap on mtime, capped).
+            if let Ok(mtime_t) = md.modified() {
+                if oldest.len() < TOP_N {
+                    oldest.push((mtime_t, entry.path(), md.len()));
+                } else if let Some((newest, _, _)) = oldest.peek() {
+                    if mtime_t < *newest {
+                        oldest.pop();
+                        oldest.push((mtime_t, entry.path(), md.len()));
+                    }
+                }
+            }
         }
         // sockets, pipes, and other special files: ignored deliberately.
     }
@@ -156,10 +229,23 @@ fn scan_path(root: &Path) -> Result<ScanNode, String> {
             files: a.files,
             dirs: a.dirs,
             errors: 0,
+            largest: vec![],
+            oldest: vec![],
             children: vec![],
         })
         .collect();
     children.sort_by(|a, b| b.size.cmp(&a.size));
+
+    let mut largest: Vec<FileEntry> = largest
+        .into_iter()
+        .map(|Reverse((size, modified, p))| file_entry(&p, size, modified))
+        .collect();
+    largest.sort_by(|a, b| b.size.cmp(&a.size));
+    let mut oldest: Vec<FileEntry> = oldest
+        .into_iter()
+        .map(|(t, p, size)| file_entry(&p, size, unix_secs(t)))
+        .collect();
+    oldest.sort_by(|a, b| a.modified.cmp(&b.modified));
 
     Ok(ScanNode {
         name: node_name(root),
@@ -168,8 +254,25 @@ fn scan_path(root: &Path) -> Result<ScanNode, String> {
         files: total.files,
         dirs: total.dirs,
         errors,
+        largest,
+        oldest,
         children,
     })
+}
+
+fn hash_file(path: &Path) -> std::io::Result<String> {
+    use std::io::Read;
+    let mut file = std::fs::File::open(path)?;
+    let mut hasher = blake3::Hasher::new();
+    let mut buf = [0u8; 65536];
+    loop {
+        let n = file.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    Ok(hasher.finalize().to_hex().to_string())
 }
 
 #[tauri::command]
@@ -192,11 +295,91 @@ fn list_roots() -> Roots {
     Roots { roots, home }
 }
 
+#[tauri::command]
+fn find_duplicates(path: String) -> Result<DupReport, String> {
+    let root = Path::new(&path);
+    let md = root
+        .metadata()
+        .map_err(|e| format!("Cannot read {}: {e}", root.display()))?;
+    if !md.is_dir() {
+        return Err(format!("Pick a folder: {}", root.display()));
+    }
+    // Phase 1: group by size (cheap). Hardlinks collapse to one entry.
+    let mut by_size: HashMap<u64, Vec<PathBuf>> = HashMap::new();
+    let mut seen: HashSet<(u64, u64)> = HashSet::new();
+    let mut errors: u64 = 0;
+    for entry in WalkDir::new(root)
+        .min_depth(1)
+        .follow_links(false)
+        .into_iter()
+    {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => {
+                errors += 1;
+                continue;
+            }
+        };
+        let ftype = entry.file_type();
+        if !ftype.is_file() || ftype.is_symlink() {
+            continue;
+        }
+        let p = entry.path();
+        let len = match p.metadata() {
+            Ok(m) => m.len(),
+            Err(_) => {
+                errors += 1;
+                continue;
+            }
+        };
+        if len == 0 {
+            continue;
+        }
+        if let Some(key) = file_id(&p) {
+            if !seen.insert(key) {
+                continue;
+            }
+        }
+        by_size.entry(len).or_default().push(p);
+    }
+    // Phase 2: hash only same-size candidates, group by digest.
+    let mut groups: Vec<DupGroup> = Vec::new();
+    for (size, paths) in by_size.into_iter().filter(|(_, v)| v.len() > 1) {
+        let mut by_hash: HashMap<String, Vec<String>> = HashMap::new();
+        for p in paths {
+            match hash_file(&p) {
+                Ok(h) => {
+                    by_hash
+                        .entry(h)
+                        .or_default()
+                        .push(p.to_string_lossy().into_owned());
+                }
+                Err(_) => {
+                    errors += 1;
+                }
+            }
+        }
+        for (hash, mut files) in by_hash.into_iter().filter(|(_, v)| v.len() > 1) {
+            files.sort();
+            files.truncate(DUP_FILES_CAP);
+            groups.push(DupGroup { hash, size, files });
+            if groups.len() >= DUP_GROUP_CAP {
+                break;
+            }
+        }
+        if groups.len() >= DUP_GROUP_CAP {
+            break;
+        }
+    }
+    groups.sort_by(|a, b| b.size.cmp(&a.size));
+    Ok(DupReport { groups, errors })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![scan_dir, list_roots])
+        .invoke_handler(tauri::generate_handler![scan_dir, list_roots, find_duplicates])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -226,6 +409,11 @@ mod tests {
         let a = node.children.iter().find(|c| c.name == "a").unwrap();
         assert_eq!(a.size, 1500);
         assert_eq!(a.files, 2);
+        let sizes: Vec<u64> = node.largest.iter().map(|f| f.size).collect();
+        assert_eq!(sizes, vec![1000, 500, 100]);
+        let mut names: Vec<&str> = node.oldest.iter().map(|f| f.name.as_str()).collect();
+        names.sort();
+        assert_eq!(names, vec!["f1.bin", "f2.bin", "top.bin"]);
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -243,6 +431,17 @@ mod tests {
     fn missing_path_errors() {
         let r = scan_path(Path::new("C:\\definitely-not-here-oc-test-12345"));
         assert!(r.is_err());
+    }
+
+    #[test]
+    fn finds_duplicates() {
+        let dir = fixture("dup");
+        fs::write(dir.join("copy-of-f1.bin"), vec![7u8; 1000]).unwrap();
+        let report = find_duplicates(dir.to_string_lossy().into_owned()).unwrap();
+        assert_eq!(report.groups.len(), 1);
+        assert_eq!(report.groups[0].size, 1000);
+        assert_eq!(report.groups[0].files.len(), 2);
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[cfg(windows)]
