@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OS Cleaner — Smart Care Meter Concept</title>
+<style>
+  :root {
+    --bg0: #070b24; --bg1: #0a0e28; --panel: #12173d;
+    --ink: #f2f5ff; --muted: #9aa3c7;
+    --sky: #7dd3fc; --cyan: #22d3ee; --blue: #3b82f6;
+    --violet: #818cf8; --ok: #34d399;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
+    background: radial-gradient(1200px 700px at 50% -10%, #1c2456 0%, var(--bg1) 55%) fixed, var(--bg1);
+    color: var(--ink); min-height: 100vh; padding: 28px 20px 60px;
+  }
+  .app {
+    max-width: 1180px; margin: 0 auto; min-height: 840px;
+    display: grid; grid-template-columns: 264px 1fr;
+    background: linear-gradient(180deg, #141a45 0%, var(--bg1) 40%);
+    border: 1px solid rgba(125, 211, 252, 0.16); border-radius: 24px;
+    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.6); overflow: hidden;
+  }
+  /* ---------- sidebar ---------- */
+  aside {
+    background: rgba(255, 255, 255, 0.035);
+    border-right: 1px solid rgba(125, 211, 252, 0.1);
+    padding: 26px 18px; display: flex; flex-direction: column; gap: 4px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; padding: 2px 8px 20px; }
+  .brand img { width: 44px; height: 44px; }
+  .brand .t { font-weight: 800; font-size: 17px; line-height: 1.15; }
+  .brand .s { color: var(--sky); font-size: 10px; letter-spacing: 3px; font-weight: 700; }
+  .nav { display: flex; flex-direction: column; gap: 4px; }
+  .nav .cap { color: var(--muted); font-size: 11px; letter-spacing: 2px; font-weight: 700;
+    padding: 14px 12px 6px; }
+  .nav button {
+    display: flex; align-items: center; gap: 12px; width: 100%;
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font: inherit; font-size: 14px; font-weight: 600;
+    padding: 10px 12px; border-radius: 12px; text-align: left;
+  }
+  .nav button:hover { background: rgba(125, 211, 252, 0.08); color: var(--ink); }
+  .nav button.active {
+    background: linear-gradient(90deg, rgba(34, 211, 238, 0.22), rgba(59, 130, 246, 0.16));
+    color: #fff; box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.25);
+  }
+  .nav svg { width: 18px; height: 18px; flex: none; }
+  .side-foot { margin-top: auto; padding: 16px 10px 4px; }
+  .diskbar { height: 8px; border-radius: 99px; background: rgba(255, 255, 255, 0.1);
+    overflow: hidden; margin: 8px 0 6px; }
+  .diskbar i { display: block; height: 100%; width: 68%; border-radius: 99px;
+    background: linear-gradient(90deg, var(--cyan), var(--blue), var(--violet)); }
+  .side-foot small { color: var(--muted); font-size: 12px; }
+  /* ---------- main ---------- */
+  main { padding: 26px 40px 30px; display: flex; flex-direction: column; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; }
+  .topbar h1 { font-size: 26px; letter-spacing: -0.5px; }
+  .topbar p { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .assistant { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700;
+    color: var(--sky); border: 1px solid rgba(125, 211, 252, 0.35);
+    padding: 8px 16px; border-radius: 999px; background: rgba(34, 211, 238, 0.07); }
+  .assistant i { width: 8px; height: 8px; border-radius: 50%; background: var(--cyan);
+    box-shadow: 0 0 8px var(--cyan); }
+  .stage { display: flex; flex-direction: column; align-items: center; padding: 26px 0 6px; }
+  /* ---------- the dial ---------- */
+  .dial {
+    --a: 0%;
+    position: relative; width: 320px; height: 320px; border-radius: 50%;
+    border: none; background: transparent; cursor: pointer; padding: 0;
+    color: var(--ink); font: inherit;
+    filter: drop-shadow(0 18px 50px rgba(34, 211, 238, 0.28));
+    transition: transform 0.15s ease, filter 0.3s ease;
+    animation: breathe 4.5s ease-in-out infinite;
+  }
+  .dial:hover { transform: scale(1.02); }
+  .dial:active { transform: scale(0.99); }
+  .dial:focus-visible { outline: 2px solid var(--cyan); outline-offset: 6px; }
+  .dial > span { position: absolute; border-radius: 50%; pointer-events: none; }
+  .dial-bevel {
+    inset: 0;
+    background: conic-gradient(from 210deg, #f2f7ff, #8ea2c9 12%, #2a3263 30%,
+      #10153a 50%, #2a3263 70%, #8ea2c9 88%, #f2f7ff);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+  .dial-sep { inset: 10px; background: #0b0f2a; }
+  .ringmask {
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 25px), #000 calc(100% - 24px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 25px), #000 calc(100% - 24px));
+  }
+  .dial-track { inset: 14px; background: rgba(148, 163, 255, 0.14); }
+  .dial-progress {
+    inset: 14px;
+    background: conic-gradient(from -90deg, var(--cyan) 0%, var(--violet) var(--a), transparent var(--a));
+    filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.8));
+  }
+  .dial.cleaning .dial-progress {
+    background: conic-gradient(from -90deg, var(--ok) 0%, var(--cyan) var(--a), transparent var(--a));
+    filter: drop-shadow(0 0 12px rgba(52, 211, 153, 0.8));
+  }
+  .dial.done .dial-progress {
+    background: conic-gradient(from -90deg, var(--ok) 0%, #6ee7b7 var(--a), transparent var(--a));
+    filter: drop-shadow(0 0 14px rgba(52, 211, 153, 0.9));
+  }
+  .dial-shimmer {
+    inset: 14px; opacity: 0;
+    background: conic-gradient(from 0deg, transparent 0 40%, rgba(255, 255, 255, 0.3) 50%, transparent 60% 100%);
+  }
+  .dial.scanning .dial-shimmer, .dial.cleaning .dial-shimmer { opacity: 1; animation: spin 1.4s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .dial.scanning, .dial.cleaning { animation: pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse {
+    50% { filter: drop-shadow(0 18px 70px rgba(34, 211, 238, 0.55)); }
+  }
+  @keyframes breathe {
+    50% { filter: drop-shadow(0 18px 58px rgba(34, 211, 238, 0.45)); }
+  }
+  .dial.done { animation: none; filter: drop-shadow(0 18px 50px rgba(52, 211, 153, 0.35)); }
+  .dial-comet { inset: 14px; opacity: 0; transition: opacity 0.2s; }
+  .dial-comet.on { opacity: 1; }
+  .comet-dot {
+    position: absolute; left: 50%; top: 3px; width: 18px; height: 18px;
+    margin-left: -9px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fff, var(--cyan) 60%, transparent 72%);
+    box-shadow: 0 0 16px 4px rgba(34, 211, 238, 0.8);
+  }
+  .dial-ticks { inset: 0; }
+  .tick { position: absolute; left: 50%; top: 50%; width: 2px; height: 9px;
+    margin: -4px 0 0 -1px; border-radius: 2px; background: rgba(255, 255, 255, 0.35); }
+  .tick.major { height: 14px; margin-top: -7px; background: rgba(255, 255, 255, 0.6); }
+  .dial-glass {
+    inset: 52px;
+    background: radial-gradient(circle at 34% 26%, #313b73 0%, #1a2154 38%, #0d1338 72%, #080c26 100%);
+    box-shadow: inset 0 3px 14px rgba(255, 255, 255, 0.22),
+      inset 0 -24px 48px rgba(0, 0, 0, 0.55),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+  .dial-glass::before {
+    content: ""; position: absolute; left: 12%; right: 12%; top: 5%; height: 34%;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.35), transparent 70%);
+  }
+  .dial-glass::after {
+    content: ""; position: absolute; left: 20%; right: 20%; bottom: 4%; height: 22%;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at 50% 100%, rgba(125, 211, 252, 0.2), transparent 70%);
+  }
+  .dial-face {
+    inset: 52px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+  }
+  .dial-top { font-size: 12px; letter-spacing: 4px; color: var(--sky); font-weight: 700; }
+  .dial.done .dial-top { color: var(--ok); }
+  .dial-big { font-size: 46px; font-weight: 800; letter-spacing: -1px; margin: 6px 0;
+    font-variant-numeric: tabular-nums; }
+  .dial-sub { font-size: 13px; color: var(--muted); max-width: 190px; min-height: 40px; }
+  .status { margin-top: 18px; color: var(--muted); font-size: 14px; min-height: 24px; text-align: center; }
+  .status b { color: var(--sky); font-weight: 700; }
+  .controls { display: flex; gap: 12px; margin-top: 12px; }
+  .btn {
+    font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+    color: var(--sky); background: rgba(34, 211, 238, 0.08);
+    border: 1px solid rgba(125, 211, 252, 0.35); border-radius: 999px; padding: 9px 22px;
+  }
+  .btn:hover { background: rgba(34, 211, 238, 0.16); }
+  .btn.ghost { color: var(--muted); border-color: rgba(154, 163, 199, 0.3); background: none; }
+  .btn.ghost:hover { color: var(--ink); }
+  .btn[hidden] { display: none; }
+  /* ---------- mini meters ---------- */
+  .minis { display: flex; gap: 44px; justify-content: center; margin-top: 26px; flex-wrap: wrap; }
+  .mini { text-align: center; }
+  .mini-dial { position: relative; width: 120px; height: 120px; margin: 0 auto; }
+  .mini-ring {
+    --m: 0%; --c1: var(--cyan); --c2: var(--blue);
+    position: relative; width: 120px; height: 120px; border-radius: 50%;
+    background: conic-gradient(from -90deg, var(--c1) 0%, var(--c2) var(--m), rgba(148, 163, 255, 0.14) var(--m));
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 15px), #000 calc(100% - 14px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 15px), #000 calc(100% - 14px));
+  }
+  .mini-core {
+    position: absolute; inset: 19px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 28%, #232b63, #0d1338 70%);
+    box-shadow: inset 0 2px 8px rgba(255, 255, 255, 0.16), inset 0 -10px 20px rgba(0, 0, 0, 0.5);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums;
+  }
+  .mini-name { font-size: 13px; font-weight: 700; margin-top: 10px; }
+  .mini-sub { font-size: 12px; color: var(--muted); }
+  .spec { max-width: 1180px; margin: 18px auto 0; color: var(--muted); font-size: 13px; text-align: center; }
+  .spec b { color: var(--sky); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand">
+      <img src="../brand/os-cleaner-icon-512.png" alt="OS Cleaner">
+      <div><div class="t">OS Cleaner</div><div class="s">BY DON PELY</div></div>
+    </div>
+    <nav class="nav">
+      <div class="cap">CARE</div>
+      <button class="active">
+        <svg viewBox="0 0 18 18" fill="currentColor"><path d="M9 1 Q10 8 17 9 Q10 10 9 17 Q8 10 1 9 Q8 8 9 1Z"/></svg>
+        Smart Care
+      </button>
+      <div class="cap">INSIGHT</div>
+      <button>
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="11" y="2" width="5" height="5" rx="1"/><rect x="11" y="9" width="5" height="7" rx="1"/><rect x="2" y="11" width="7" height="5" rx="1"/></svg>
+        Disk Map
+      </button>
+      <button>
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="14" height="5" rx="1"/><path d="M4 9v6h12V9M10 12.5h4"/></svg>
+        My Clutter
+      </button>
+      <div class="cap">SYSTEM</div>
+      <button>
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 2h7l3 3v11H4z"/><path d="M11 2v3h3"/></svg>
+        App Leftovers
+      </button>
+      <button>
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3h9a3 3 0 013 3v4a3 3 0 01-3 3H9l-4 3v-3H3a3 3 0 01-3-3V6a3 3 0 013-3z" transform="translate(1.5,0)"/></svg>
+        Assistant
+      </button>
+    </nav>
+    <div class="side-foot">
+      <small>C: drive</small>
+      <div class="diskbar"><i></i></div>
+      <small>41.5 GB free of 2 TB</small>
+    </div>
+  </aside>
+  <main>
+    <div class="topbar">
+      <div><h1>Smart Care</h1><p>One dial — scan everything, approve once, run.</p></div>
+      <div class="assistant"><i></i>Assistant</div>
+    </div>
+    <div class="stage">
+      <button id="dial" class="dial" aria-label="Run Smart Scan">
+        <span class="dial-bevel"></span>
+        <span class="dial-sep"></span>
+        <span class="dial-track ringmask"></span>
+        <span class="dial-progress ringmask"></span>
+        <span class="dial-shimmer ringmask"></span>
+        <span class="dial-ticks" id="ticks"></span>
+        <span class="dial-comet" id="comet"><span class="comet-dot"></span></span>
+        <span class="dial-glass"></span>
+        <span class="dial-face">
+          <span class="dial-top" id="dialTop">READY</span>
+          <span class="dial-big" id="dialBig">Scan</span>
+          <span class="dial-sub" id="dialSub">click the dial to start</span>
+        </span>
+      </button>
+      <div class="status" id="statusText">Ready — last scan found <b>11.3 GB</b> reclaimable.</div>
+      <div class="controls">
+        <button class="btn" id="detailsBtn" hidden>Review 128 items</button>
+        <button class="btn ghost" id="replayBtn">Replay demo</button>
+      </div>
+      <div class="minis">
+        <div class="mini">
+          <div class="mini-dial"><div class="mini-ring" id="m0" style="--c1:#22d3ee;--c2:#3b82f6"></div><div class="mini-core" id="mv0">—</div></div>
+          <div class="mini-name">System junk</div><div class="mini-sub" id="ms0">not scanned</div>
+        </div>
+        <div class="mini">
+          <div class="mini-dial"><div class="mini-ring" id="m1" style="--c1:#818cf8;--c2:#c084fc"></div><div class="mini-core" id="mv1">—</div></div>
+          <div class="mini-name">Protection</div><div class="mini-sub" id="ms1">not scanned</div>
+        </div>
+        <div class="mini">
+          <div class="mini-dial"><div class="mini-ring" id="m2" style="--c1:#34d399;--c2:#22d3ee"></div><div class="mini-core" id="mv2">—</div></div>
+          <div class="mini-name">Speed</div><div class="mini-sub" id="ms2">not scanned</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<p class="spec">Interactive concept — <b>click the dial</b> to run it: idle &rarr; scanning &rarr; results &rarr; cleaning &rarr; done. URL takes <b>?state=</b>idle|scanning|results|cleaning|done<b>&amp;progress=</b>N for stills.</p>
+<script>
+(function () {
+  "use strict";
+  var el = function (id) { return document.getElementById(id); };
+  var dial = el("dial"), top_ = el("dialTop"), big = el("dialBig"),
+      sub = el("dialSub"), status = el("statusText"), comet = el("comet"),
+      detailsBtn = el("detailsBtn"), replayBtn = el("replayBtn");
+
+  // Ticks around the dial.
+  var ticks = el("ticks");
+  for (var i = 0; i < 48; i++) {
+    var t = document.createElement("span");
+    t.className = "tick" + (i % 4 === 0 ? " major" : "");
+    t.style.transform = "rotate(" + (i * 7.5) + "deg) translateY(-134px)";
+    ticks.appendChild(t);
+  }
+
+  var minis = [0, 1, 2].map(function (i) {
+    return { ring: el("m" + i), val: el("mv" + i), sub: el("ms" + i) };
+  });
+
+  var SCAN_LINES = [
+    "Reading Installer cache…", "Cross-checking LocalPackage refs…",
+    "Auditing DriverStore…", "Sizing WinSxS (hardlink-aware)…",
+    "Listing AppX packages…", "Probing container bases…",
+    "Sweeping remnants…", "Hashing duplicates…"
+  ];
+  var CLEAN_LINES = [
+    "Moving Installer orphans to backup…", "Removing superseded drivers…",
+    "Running DISM component cleanup…", "Removing 7 AppX packages…",
+    "Sweeping remnants…", "Emptying caches…"
+  ];
+  var GB_TOTAL = 11.3;
+
+  var state = "idle", raf = null;
+
+  function setProgress(p) {
+    dial.style.setProperty("--a", p.toFixed(1) + "%");
+    comet.style.transform = "rotate(" + (p * 3.6).toFixed(1) + "deg)";
+    comet.classList.toggle("on", p > 0.5 && p < 99.5);
+  }
+  function setMini(i, pct, val, subTxt) {
+    minis[i].ring.style.setProperty("--m", pct.toFixed(1) + "%");
+    minis[i].val.textContent = val;
+    minis[i].sub.textContent = subTxt;
+  }
+  function clamp01(x) { return Math.min(1, Math.max(0, x)); }
+  function ease(x) { return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }
+
+  function reset(msg) {
+    if (raf) cancelAnimationFrame(raf);
+    raf = null; state = "idle";
+    dial.className = "dial";
+    setProgress(0);
+    top_.textContent = "READY"; big.textContent = "Scan";
+    sub.textContent = "click the dial to start";
+    status.innerHTML = msg || "Ready — last scan found <b>11.3 GB</b> reclaimable.";
+    setMini(0, 0, "—", "not scanned");
+    setMini(1, 0, "—", "not scanned");
+    setMini(2, 0, "—", "not scanned");
+    detailsBtn.hidden = true;
+  }
+
+  function startScan() {
+    state = "scanning";
+    dial.classList.add("scanning");
+    detailsBtn.hidden = true;
+    var DUR = 6500, t0 = performance.now();
+    function frame(now) {
+      var p = ease(clamp01((now - t0) / DUR));
+      setProgress(p * 100);
+      var line = SCAN_LINES[Math.min(SCAN_LINES.length - 1, Math.floor(p * SCAN_LINES.length))];
+      top_.textContent = "SCANNING";
+      big.textContent = Math.floor(p * 100) + "%";
+      sub.textContent = line;
+      status.innerHTML = "Scanning — " + line + " <b>" + (p * GB_TOTAL).toFixed(1) + " GB</b> so far.";
+      setMini(0, clamp01(p / 0.45) * 100, Math.floor(clamp01(p / 0.45) * 100) + "%", "scanning…");
+      setMini(1, clamp01((p - 0.35) / 0.35) * 100, Math.floor(clamp01((p - 0.35) / 0.35) * 100) + "%", "scanning…");
+      setMini(2, clamp01((p - 0.6) / 0.4) * 100, Math.floor(clamp01((p - 0.6) / 0.4) * 100) + "%", "scanning…");
+      if (p < 1) { raf = requestAnimationFrame(frame); } else { showResults(); }
+    }
+    raf = requestAnimationFrame(frame);
+  }
+
+  function showResults() {
+    state = "results";
+    dial.classList.remove("scanning");
+    setProgress(100);
+    top_.textContent = "RECLAIMABLE"; big.textContent = "11.3 GB";
+    sub.textContent = "128 items · safe to review";
+    status.innerHTML = "Scan complete in 6.5s — <b>128 items</b> across 7 modules. Click the dial to clean.";
+    setMini(0, 100, "8.2 GB", "ready to clean");
+    setMini(1, 100, "Safe", "no threats");
+    setMini(2, 100, "+9%", "faster boot");
+    detailsBtn.hidden = false;
+  }
+
+  function startClean() {
+    state = "cleaning";
+    dial.classList.add("cleaning");
+    detailsBtn.hidden = true;
+    var DUR = 4200, t0 = performance.now();
+    function frame(now) {
+      var p = ease(clamp01((now - t0) / DUR));
+      setProgress(p * 100);
+      var line = CLEAN_LINES[Math.min(CLEAN_LINES.length - 1, Math.floor(p * CLEAN_LINES.length))];
+      top_.textContent = "CLEANING";
+      big.textContent = ((1 - p) * GB_TOTAL).toFixed(1) + " GB";
+      sub.textContent = line;
+      status.innerHTML = "Cleaning — " + line;
+      setMini(0, (1 - p) * 100, ((1 - p) * 8.2).toFixed(1) + " GB", "cleaning…");
+      if (p < 1) { raf = requestAnimationFrame(frame); } else { showDone(); }
+    }
+    raf = requestAnimationFrame(frame);
+  }
+
+  function showDone() {
+    state = "done";
+    dial.classList.remove("cleaning");
+    dial.classList.add("done");
+    setProgress(100);
+    top_.textContent = "SPACE FREED"; big.textContent = "11.3 GB";
+    sub.textContent = "All clean — nicely done";
+    status.innerHTML = "Done — C: now has <b>41.5 GB</b> free. Click the dial to scan again.";
+    setMini(0, 0, "0 B", "sparkling");
+    setMini(1, 100, "Safe", "no threats");
+    setMini(2, 100, "+9%", "faster boot");
+  }
+
+  dial.addEventListener("click", function () {
+    if (state === "idle") startScan();
+    else if (state === "scanning") reset("Scan cancelled — nothing was touched.");
+    else if (state === "results") startClean();
+    else if (state === "done") reset();
+  });
+  replayBtn.addEventListener("click", function () { reset(); });
+  detailsBtn.addEventListener("click", function () {
+    status.innerHTML = "Review list ships with the app — <b>50</b> Installer orphans · <b>2</b> drivers · <b>7</b> AppX · remnants…";
+  });
+
+  // Frozen stills for screenshots: ?state=scanning&progress=62 etc.
+  var q = new URLSearchParams(location.search);
+  if (q.has("state")) {
+    var s = q.get("state"), pr = parseFloat(q.get("progress") || "62");
+    if (s === "scanning") {
+      state = "scanning"; dial.classList.add("scanning");
+      var p = clamp01(pr / 100);
+      setProgress(pr);
+      top_.textContent = "SCANNING"; big.textContent = Math.floor(pr) + "%";
+      sub.textContent = SCAN_LINES[Math.min(SCAN_LINES.length - 1, Math.floor(p * SCAN_LINES.length))];
+      status.innerHTML = "Scanning — <b>" + (p * GB_TOTAL).toFixed(1) + " GB</b> so far.";
+      setMini(0, clamp01(p / 0.45) * 100, Math.floor(clamp01(p / 0.45) * 100) + "%", "scanning…");
+      setMini(1, clamp01((p - 0.35) / 0.35) * 100, Math.floor(clamp01((p - 0.35) / 0.35) * 100) + "%", "scanning…");
+      setMini(2, clamp01((p - 0.6) / 0.4) * 100, Math.floor(clamp01((p - 0.6) / 0.4) * 100) + "%", "scanning…");
+    } else if (s === "cleaning") {
+      state = "cleaning"; dial.classList.add("cleaning");
+      var c = clamp01(pr / 100);
+      setProgress(pr);
+      top_.textContent = "CLEANING"; big.textContent = ((1 - c) * GB_TOTAL).toFixed(1) + " GB";
+      sub.textContent = CLEAN_LINES[Math.min(CLEAN_LINES.length - 1, Math.floor(c * CLEAN_LINES.length))];
+      status.innerHTML = "Cleaning in progress…";
+      setMini(0, (1 - c) * 100, ((1 - c) * 8.2).toFixed(1) + " GB", "cleaning…");
+      setMini(1, 100, "Safe", "no threats");
+      setMini(2, 100, "+9%", "faster boot");
+    } else if (s === "results") { showResults(); }
+    else if (s === "done") { showDone(); }
+  }
+})();
+</script>
+</body>
+</html>

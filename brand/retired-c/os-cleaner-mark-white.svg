@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="100 100 824 824">
+  <title>OS Cleaner by Don Pely — Mark (white, for dark surfaces)</title>
+  <defs>
+    <linearGradient id="mw-body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#D6EBFF"/>
+    </linearGradient>
+  </defs>
+  <path d="M 712.6 331.3 A 270 270 0 1 0 712.6 692.7"
+        fill="none" stroke="url(#mw-body)" stroke-width="210" stroke-linecap="round"/>
+  <g transform="translate(726,318) scale(1.7) translate(-726,-318)" opacity="0.25" fill="#FFFFFF">
+    <path d="M 726 218 Q 738 306 826 318 Q 738 330 726 418 Q 714 330 626 318 Q 714 306 726 218 Z"/>
+  </g>
+  <g transform="translate(318,706) scale(1.8) translate(-318,-706)" opacity="0.25" fill="#FFFFFF">
+    <path d="M 318 662 Q 324 700 362 706 Q 324 712 318 750 Q 312 712 274 706 Q 312 700 318 662 Z"/>
+  </g>
+  <g fill="#FFFFFF">
+    <path d="M 726 218 Q 738 306 826 318 Q 738 330 726 418 Q 714 330 626 318 Q 714 306 726 218 Z"/>
+    <path d="M 318 662 Q 324 700 362 706 Q 324 712 318 750 Q 312 712 274 706 Q 312 700 318 662 Z"/>
+    <path d="M 782 486 Q 785 509 808 512 Q 785 515 782 538 Q 779 515 756 512 Q 779 509 782 486 Z"/>
+    <circle cx="302" cy="252" r="10"/>
+  </g>
+</svg>

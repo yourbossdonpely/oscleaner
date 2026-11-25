@@ -1,0 +1,9 @@
+# OS Cleaner by Don Pely
+target/
+node_modules/
+dist/
+build/
+*.log
+.DS_Store
+Thumbs.db
+src-tauri/target/

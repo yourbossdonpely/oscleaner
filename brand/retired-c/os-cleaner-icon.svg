@@ -1,0 +1,181 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>OS Cleaner by Don Pely — 3D App Icon</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.55" stop-color="#F5F3FF"/>
+      <stop offset="1" stop-color="#E3DCFB"/>
+    </linearGradient>
+    <radialGradient id="sheenW" cx="0.5" cy="0.12" r="0.55">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="shadeB" cx="0.5" cy="0.98" r="0.5">
+      <stop offset="0" stop-color="#6A5AC8" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#6A5AC8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bodyG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2B2D52"/>
+      <stop offset="1" stop-color="#14152A"/>
+    </linearGradient>
+    <linearGradient id="lipD" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3A3D66"/>
+      <stop offset="1" stop-color="#23253D"/>
+    </linearGradient>
+    <linearGradient id="bezelG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1E1F36"/>
+      <stop offset="1" stop-color="#06060F"/>
+    </linearGradient>
+    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF8FE0"/>
+      <stop offset="0.45" stop-color="#FB3DCB"/>
+      <stop offset="1" stop-color="#E80FB2"/>
+    </linearGradient>
+    <radialGradient id="shineG" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.38"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E0A862"/>
+      <stop offset="0.5" stop-color="#B97A36"/>
+      <stop offset="1" stop-color="#8A5A28"/>
+    </linearGradient>
+    <linearGradient id="silver" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F2F3FF"/>
+      <stop offset="0.5" stop-color="#B9BBEA"/>
+      <stop offset="1" stop-color="#7E80C4"/>
+    </linearGradient>
+    <linearGradient id="headG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8B7CF5"/>
+      <stop offset="1" stop-color="#5A4BD0"/>
+    </linearGradient>
+    <linearGradient id="straw" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#B57E2E"/>
+      <stop offset="1" stop-color="#D9A04C"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#DCDCFB"/>
+      <stop offset="0.55" stop-color="#A9A9EC"/>
+      <stop offset="1" stop-color="#8B8BD8"/>
+    </linearGradient>
+    <linearGradient id="metal2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F0F0FF"/>
+      <stop offset="0.55" stop-color="#BFBFF2"/>
+      <stop offset="1" stop-color="#8F8FD8"/>
+    </linearGradient>
+    <radialGradient id="gshadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#2A1E5E" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#2A1E5E" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="squircle"><rect x="0" y="0" width="1024" height="1024" rx="240"/></clipPath>
+    <clipPath id="bodyClip"><rect x="110" y="270" width="804" height="400" rx="76"/></clipPath>
+    <clipPath id="glassClip"><rect x="150" y="310" width="724" height="288" rx="46"/></clipPath>
+  </defs>
+
+  <!-- backdrop -->
+  <rect x="0" y="0" width="1024" height="1024" rx="240" fill="url(#bg)"/>
+  <g clip-path="url(#squircle)">
+    <circle cx="830" cy="180" r="120" fill="#FF9BE6" opacity="0.12"/>
+    <circle cx="180" cy="840" r="110" fill="#7DD3FC" opacity="0.1"/>
+    <circle cx="150" cy="200" r="16" fill="#C4B5FD" opacity="0.35"/>
+    <circle cx="880" cy="760" r="20" fill="#F9A8D4" opacity="0.3"/>
+    <circle cx="920" cy="420" r="12" fill="#93C5FD" opacity="0.35"/>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#sheenW)"/>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#shadeB)"/>
+
+    <!-- ground shadow -->
+    <ellipse cx="512" cy="822" rx="230" ry="26" fill="url(#gshadow)"/>
+
+    <!-- monitor body -->
+    <rect x="110" y="270" width="804" height="400" rx="76" fill="url(#bodyG)"/>
+    <g clip-path="url(#bodyClip)">
+      <rect x="110" y="270" width="26" height="400" fill="#FFFFFF" opacity="0.1"/>
+      <rect x="888" y="270" width="26" height="400" fill="#000000" opacity="0.25"/>
+      <rect x="110" y="610" width="804" height="60" fill="url(#lipD)"/>
+      <rect x="110" y="606" width="804" height="6" fill="#000000" opacity="0.5"/>
+      <rect x="110" y="662" width="804" height="5" fill="#FFFFFF" opacity="0.22"/>
+      <rect x="110" y="270" width="804" height="6" fill="#FFFFFF" opacity="0.25"/>
+    </g>
+
+    <!-- bezel -->
+    <rect x="134" y="294" width="756" height="320" rx="58" fill="url(#bezelG)" stroke="#FFFFFF" stroke-opacity="0.07" stroke-width="2"/>
+    <circle cx="512" cy="606" r="9" fill="#67E8F9" opacity="0.3"/>
+    <circle cx="512" cy="606" r="4" fill="#67E8F9"/>
+
+    <!-- screen glass -->
+    <rect x="150" y="310" width="724" height="288" rx="46" fill="url(#face)"/>
+    <g clip-path="url(#glassClip)">
+      <polygon points="210,310 370,310 240,598 150,598" fill="#FFFFFF" opacity="0.22"/>
+      <polygon points="390,310 440,310 310,598 280,598" fill="#FFFFFF" opacity="0.12"/>
+      <!-- cleaned shine where the broom passed -->
+      <ellipse cx="640" cy="470" rx="130" ry="80" fill="url(#shineG)"/>
+      <!-- wipe streaks -->
+      <path d="M560,560 Q640,520 700,510" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" fill="none" opacity="0.4"/>
+      <path d="M540,590 Q630,560 690,548" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round" fill="none" opacity="0.25"/>
+      <!-- dirt left on the uncleaned side -->
+      <circle cx="230" cy="480" r="6" fill="#7A1E63" opacity="0.75"/>
+      <circle cx="265" cy="520" r="4.5" fill="#7A1E63" opacity="0.7"/>
+      <circle cx="205" cy="545" r="4" fill="#7A1E63" opacity="0.65"/>
+      <circle cx="300" cy="450" r="3.5" fill="#7A1E63" opacity="0.7"/>
+      <!-- sparkles on the cleaned side -->
+      <path d="M770,394 Q774,416 796,420 Q774,424 770,446 Q766,424 744,420 Q766,416 770,394 Z" fill="#FFFFFF" opacity="0.95"/>
+      <path d="M600,365 Q602,378 615,380 Q602,382 600,395 Q598,382 585,380 Q598,378 600,365 Z" fill="#FFFFFF" opacity="0.85"/>
+      <circle cx="830" cy="500" r="5" fill="#FFFFFF" opacity="0.7"/>
+      <circle cx="700" cy="350" r="4" fill="#FFFFFF" opacity="0.7"/>
+    </g>
+
+    <!-- stand -->
+    <rect x="452" y="656" width="120" height="126" rx="16" fill="url(#metal)"/>
+    <rect x="456" y="660" width="12" height="118" rx="6" fill="#7676C4" opacity="0.55"/>
+    <rect x="556" y="660" width="12" height="118" rx="6" fill="#FFFFFF" opacity="0.5"/>
+    <!-- trash emblem on stand -->
+    <g>
+      <rect x="506" y="682" width="12" height="8" rx="4" fill="#4E5280"/>
+      <rect x="490" y="690" width="44" height="9" rx="4.5" fill="#4E5280"/>
+      <path d="M492,701 L532,701 L526,744 L498,744 Z" fill="#4E5280"/>
+      <path d="M503,708 L501.5,737 M512,708 L512,737 M521,708 L522.5,737"
+            stroke="#9A9EE8" stroke-width="4" stroke-linecap="round"/>
+    </g>
+    <rect x="366" y="776" width="292" height="38" rx="19" fill="url(#metal2)"/>
+    <rect x="380" y="779" width="264" height="5" rx="2.5" fill="#FFFFFF" opacity="0.8"/>
+    <rect x="380" y="806" width="264" height="4" fill="#5A5AA8" opacity="0.5"/>
+
+    <!-- broom shadow on screen -->
+    <g transform="translate(832 338) scale(0.85) rotate(-63) translate(-541 -415)" opacity="0.12" fill="#000000">
+      <rect x="331" y="398" width="420" height="34" rx="17"/>
+      <ellipse cx="256" cy="415" rx="45" ry="42"/>
+    </g>
+
+    <!-- broom, right side -->
+    <g transform="translate(818 324) scale(0.85) rotate(-63) translate(-541 -415)">
+      <path d="M293,383 L210,366 L210,466 L293,447 Z" fill="url(#straw)"/>
+      <g opacity="0.98">
+        <path d="M291,385 L210,370 L210,374 L291,395 Z" fill="#EDB95F"/>
+        <path d="M291,391.3 L210,381 L210,385 L291,401.3 Z" fill="#DCA14E"/>
+        <path d="M291,397.5 L210,392 L210,396 L291,407.5 Z" fill="#C68B3C"/>
+        <path d="M291,403.8 L210,403 L210,407 L291,413.8 Z" fill="#EDB95F"/>
+        <path d="M291,410 L210,414 L210,418 L291,420 Z" fill="#DCA14E"/>
+        <path d="M291,416.3 L210,425 L210,429 L291,426.3 Z" fill="#C68B3C"/>
+        <path d="M291,422.5 L210,436 L210,440 L291,432.5 Z" fill="#EDB95F"/>
+        <path d="M291,428.8 L210,447 L210,451 L291,438.8 Z" fill="#DCA14E"/>
+        <path d="M291,435 L210,458 L210,462 L291,445 Z" fill="#C68B3C"/>
+      </g>
+      <path d="M333,391 L293,383 L293,447 L333,439 Z" fill="url(#headG)"/>
+      <path d="M333,391 L293,383 L293,392 L333,400 Z" fill="#FFFFFF" opacity="0.3"/>
+      <rect x="315" y="391" width="52" height="48" rx="10" fill="url(#silver)"/>
+      <line x1="329" y1="393" x2="329" y2="437" stroke="#5E60A8" stroke-width="3" opacity="0.5"/>
+      <line x1="353" y1="393" x2="353" y2="437" stroke="#5E60A8" stroke-width="3" opacity="0.5"/>
+      <rect x="331" y="398" width="420" height="34" rx="17" fill="url(#wood)"/>
+      <rect x="345" y="404" width="390" height="7" rx="3.5" fill="#FFFFFF" opacity="0.35"/>
+      <rect x="345" y="421" width="390" height="5" fill="#000000" opacity="0.12"/>
+      <circle cx="743" cy="415" r="15" fill="#8A5A28"/>
+      <circle cx="743" cy="415" r="5" fill="#5E3A16"/>
+    </g>
+
+    <!-- foreground sparkle -->
+    <path d="M770,100 Q776,134 810,140 Q776,146 770,180 Q764,146 730,140 Q764,134 770,100 Z" fill="#FFFFFF" opacity="0.95"/>
+    <circle cx="905" cy="450" r="5" fill="#FFFFFF" opacity="0.7"/>
+
+    <rect x="6" y="6" width="1012" height="1012" rx="234" fill="none" stroke="#7A68D8" stroke-width="4" opacity="0.22"/>
+  </g>
+</svg>

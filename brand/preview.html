@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OS Cleaner by Don Pely — Logo Preview</title>
+<style>
+  :root {
+    --bg: #f5f3ff; --card: #ffffff; --ink: #232348; --muted: #6a6a96;
+    --pink: #e80fb2; --gold: #b78f36;
+    --radius: 20px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
+    background: radial-gradient(1100px 500px at 50% -10%, #ffe4f4 0%, var(--bg) 55%) fixed, var(--bg);
+    color: var(--ink); line-height: 1.6; padding-bottom: 80px;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 18px 32px; position: sticky; top: 0; z-index: 10;
+    background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(232, 15, 178, 0.12);
+  }
+  header img { width: 40px; height: 40px; border-radius: 10px; }
+  header .t { font-weight: 800; font-size: 18px; }
+  header .s { color: var(--pink); font-size: 12px; letter-spacing: 3px; font-weight: 700; }
+  main { max-width: 1060px; margin: 0 auto; padding: 0 28px; }
+  .hero { display: flex; gap: 48px; align-items: center; padding: 64px 0 48px; flex-wrap: wrap; }
+  .hero img.mark { width: min(340px, 70vw); height: auto; filter: drop-shadow(0 24px 60px rgba(232, 15, 178, 0.28)); }
+  .hero h1 { font-size: clamp(36px, 6vw, 56px); line-height: 1.08; letter-spacing: -1px; }
+  .hero h1 span { background: linear-gradient(90deg, #e80fb2, #b78f36, #f0b90b);
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .kicker { color: var(--pink); letter-spacing: 5px; font-weight: 700; font-size: 13px; margin-bottom: 14px; }
+  .lede { color: var(--muted); font-size: 18px; max-width: 52ch; margin-top: 16px; }
+  .chips { display: flex; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
+  .chip { border: 1px solid rgba(183, 143, 54, 0.45); color: #8a6a1f;
+    border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 600; background: #fff; }
+  section { margin-top: 56px; }
+  section > h2 { font-size: 24px; margin-bottom: 6px; }
+  section > p.sub { color: var(--muted); margin-bottom: 22px; max-width: 70ch; }
+  .grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .card { background: var(--card); border: 1px solid rgba(35, 35, 72, 0.09);
+    border-radius: var(--radius); padding: 28px; box-shadow: 0 12px 32px rgba(120, 90, 200, 0.1); }
+  .card h3 { font-size: 16px; margin-bottom: 4px; }
+  .card p { color: var(--muted); font-size: 14px; }
+  .card .n { display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 12px; font-weight: 800; color: #fff;
+    background: linear-gradient(135deg, #f055d0, #b78f36); margin-bottom: 14px; }
+  .ladder { display: flex; align-items: flex-end; gap: 28px; flex-wrap: wrap;
+    background: var(--card); border: 1px solid rgba(35, 35, 72, 0.09);
+    border-radius: var(--radius); padding: 32px; box-shadow: 0 12px 32px rgba(120, 90, 200, 0.1); }
+  .ladder figure { text-align: center; }
+  .ladder figcaption { color: var(--muted); font-size: 12px; margin-top: 10px; font-weight: 600; }
+  .swatches { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+  .sw { border-radius: 14px; overflow: hidden; border: 1px solid rgba(35,35,72,.12); cursor: pointer; background: #fff; }
+  .sw .c { height: 76px; }
+  .sw .n { padding: 10px 12px; font-size: 12px; }
+  .sw .n b { display: block; font-size: 13px; }
+  .sw .n span { color: var(--muted); font-family: Consolas, monospace; }
+  .files { background: var(--card); border: 1px solid rgba(35, 35, 72, 0.09);
+    border-radius: var(--radius); padding: 12px 28px; }
+  .files a { display: flex; justify-content: space-between; color: var(--ink);
+    text-decoration: none; padding: 12px 0; border-bottom: 1px solid rgba(35, 35, 72, 0.08); }
+  .files a:last-child { border-bottom: none; }
+  .files a:hover { color: var(--pink); }
+  .files small { color: var(--muted); }
+  footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 64px; }
+  #toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--gold); color: #fff; font-weight: 700; padding: 10px 22px;
+    border-radius: 999px; opacity: 0; transition: all .25s; pointer-events: none; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<header>
+  <img src="os-cleaner-icon-512.png" alt="OS Cleaner icon">
+  <div><div class="t">OS Cleaner</div><div class="s">BRAND PREVIEW</div></div>
+</header>
+<main>
+  <div class="hero">
+    <img class="mark" src="os-cleaner-icon-1024.png" alt="OS Cleaner app icon — pink screen swept by a golden broom, Don PELY on the stand">
+    <div>
+      <div class="kicker">PRIMARY APP ICON</div>
+      <h1>The <span>Golden Sweep</span></h1>
+      <p class="lede">Don Pely's own mark: a glossy magenta screen swept by a golden broom —
+        black-and-gold handle, gold ferrule, straw fan mid-swipe with sparkles — on a
+        gold stand and base. The stand carries the owner's name, <b>Don PELY</b>,
+        embossed in raised metallic gold, and the black surround is removed for
+        full transparency.</p>
+      <div class="chips"><span class="chip">Designed by Don Pely</span><span class="chip">Embossed gold seal</span>
+        <span class="chip">Transparent</span><span class="chip">1024 + 512</span></div>
+    </div>
+  </div>
+
+  <section>
+    <h2>Why it reads</h2>
+    <p class="sub">Three decisions carry the whole mark at any size.</p>
+    <div class="grid">
+      <div class="card"><div class="n">1</div><h3>Pink screen</h3><p>Glossy magenta display with a wipe sheen and sparkles — the surface being cleaned, glowing.</p></div>
+      <div class="card"><div class="n">2</div><h3>Golden broom</h3><p>Gold ferrule and straw fan on a black-and-gold handle, sweeping the right side. The cleaner's tool, in gold.</p></div>
+      <div class="card"><div class="n">3</div><h3>Embossed seal</h3><p>Don PELY in raised metallic gold on the stand neck — bronze shadow below, bright catchlight above.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Size ladder</h2>
+    <p class="sub">From product hero down to favicon — screen, broom, and stand stay readable all the way to 16px.</p>
+    <div class="ladder">
+      <figure><img src="os-cleaner-icon-1024.png" width="128" height="128" alt="128px"><figcaption>128</figcaption></figure>
+      <figure><img src="os-cleaner-icon-1024.png" width="64" height="64" alt="64px"><figcaption>64</figcaption></figure>
+      <figure><img src="os-cleaner-icon-1024.png" width="48" height="48" alt="48px"><figcaption>48</figcaption></figure>
+      <figure><img src="os-cleaner-icon-1024.png" width="32" height="32" alt="32px"><figcaption>32</figcaption></figure>
+      <figure><img src="os-cleaner-icon-1024.png" width="24" height="24" alt="24px"><figcaption>24</figcaption></figure>
+      <figure><img src="os-cleaner-icon-1024.png" width="16" height="16" alt="16px"><figcaption>16 favicon</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Palette</h2>
+    <p class="sub">Sampled from the artwork, plus the seal metals. Click any swatch to copy its hex.</p>
+    <div class="swatches">
+      <div class="sw" data-hex="#FD34DA"><div class="c" style="background:#FD34DA"></div><div class="n"><b>Screen Pink</b><span>#FD34DA</span></div></div>
+      <div class="sw" data-hex="#FED604"><div class="c" style="background:#FED604"></div><div class="n"><b>Broom Straw</b><span>#FED604</span></div></div>
+      <div class="sw" data-hex="#B78F36"><div class="c" style="background:#B78F36"></div><div class="n"><b>Stand Bronze</b><span>#B78F36</span></div></div>
+      <div class="sw" data-hex="#E0A83C"><div class="c" style="background:#E0A83C"></div><div class="n"><b>Emboss Gold</b><span>#E0A83C</span></div></div>
+      <div class="sw" data-hex="#8A5210"><div class="c" style="background:#8A5210"></div><div class="n"><b>Deep Bronze</b><span>#8A5210</span></div></div>
+      <div class="sw" data-hex="#F8F3FD"><div class="c" style="background:#F8F3FD"></div><div class="n"><b>Cloud Tile</b><span>#F8F3FD</span></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Source files</h2>
+    <p class="sub">Your original is untouched. The two exports below are transparent, centered, and carry the gold seal — the 1024px one becomes the Tauri icon source at scaffold time.</p>
+    <div class="files">
+      <a href="Glossy%20Golden%20Broom%20Screen%20Icon.png" download><span>Glossy Golden Broom Screen Icon.png</span><small>your original · untouched</small></a>
+      <a href="os-cleaner-icon-1024.png" download><span>os-cleaner-icon-1024.png</span><small>transparent + seal · Tauri icon source</small></a>
+      <a href="os-cleaner-icon-512.png" download><span>os-cleaner-icon-512.png</span><small>transparent + seal</small></a>
+    </div>
+  </section>
+
+  <footer>Mark designed by Don Pely · gold seal and transparency finished in this session.</footer>
+</main>
+<div id="toast">Copied</div>
+<script>
+  const toast = document.getElementById('toast');
+  document.querySelectorAll('.sw').forEach(el => {
+    el.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(el.dataset.hex); } catch (e) {
+        const t = document.createElement('textarea');
+        t.value = el.dataset.hex; document.body.appendChild(t); t.select();
+        document.execCommand('copy'); t.remove();
+      }
+      toast.textContent = 'Copied ' + el.dataset.hex;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 1400);
+    });
+  });
+</script>
+</body>
+</html>
