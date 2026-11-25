@@ -990,15 +990,17 @@ function MyClutter() {
           </div>
         </div>
       )}
-      <ReviewBar
-        count={selPaths.length}
-        bytes={selBytes}
+      {!confirming && (
+        <ReviewBar
+          count={selPaths.length}
+          bytes={selBytes}
         onReview={() => {
           setReport(null);
           setConfirming(true);
         }}
         onClear={() => setSelected(new Set())}
-      />
+        />
+      )}
       {confirming && (
         <ConfirmModal
           paths={selPaths}

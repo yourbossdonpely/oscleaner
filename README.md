@@ -27,9 +27,9 @@ real cleanups: [bloat.md](./bloat.md) is the full session log this app grew out 
 
 | Platform | File |
 |----------|------|
-| Windows | [`Setup exe`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.2.0/OS.Cleaner_0.2.0_x64-setup.exe) (NSIS installer) · [`MSI`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.2.0/OS.Cleaner_0.2.0_x64_en-US.msi) |
-| macOS (Intel + Apple Silicon) | [`DMG`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.2.0/OS.Cleaner_0.2.0_universal.dmg) (universal, ad-hoc signed) |
-| Linux | [`AppImage`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.2.0/OS.Cleaner_0.2.0_amd64.AppImage) · [`DEB`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.2.0/OS.Cleaner_0.2.0_amd64.deb) · [`RPM`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.2.0/OS.Cleaner-0.2.0-1.x86_64.rpm) |
+| Windows | [`Setup exe`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.3.0/OS.Cleaner_0.3.0_x64-setup.exe) (NSIS installer) · [`MSI`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.3.0/OS.Cleaner_0.3.0_x64_en-US.msi) |
+| macOS (Intel + Apple Silicon) | [`DMG`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.3.0/OS.Cleaner_0.3.0_universal.dmg) (universal, ad-hoc signed) |
+| Linux | [`AppImage`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.3.0/OS.Cleaner_0.3.0_amd64.AppImage) · [`DEB`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.3.0/OS.Cleaner_0.3.0_amd64.deb) · [`RPM`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.3.0/OS.Cleaner-0.3.0-1.x86_64.rpm) |
 
 All releases live on the [releases page](https://github.com/yourbossdonpely/oscleaner/releases).
 
@@ -42,6 +42,7 @@ All releases live on the [releases page](https://github.com/yourbossdonpely/oscl
 ![Smart Care screen](docs/screenshots/smart-care.png)
 ![Disk Insight screen](docs/screenshots/disk-insight.png)
 ![My Clutter screen](docs/screenshots/my-clutter.png)
+![Trash approval screen](docs/screenshots/v0.3-approve.png)
 
 ## Features
 
@@ -54,8 +55,8 @@ All releases live on the [releases page](https://github.com/yourbossdonpely/oscl
 | Largest + oldest files | ✅ v0.2 | Top-100 tracking during every scan |
 | Hash-based duplicates | ✅ v0.2 | BLAKE3 content matching, size-prefiltered |
 | Universal macOS | ✅ v0.2 | One binary for Intel + Apple Silicon |
-| Custom chrome + per-page themes | 🔨 on main | Rounded frameless window, every page its color |
-| Trash-first delete | 🔨 on main | Preview → approve → recycle bin, never silent delete |
+| Custom chrome + per-page themes | ✅ v0.3 | Rounded frameless window, every page its color |
+| Trash-first delete | ✅ v0.3 | Preview → approve → recycle bin, never silent delete |
 | Installer orphans | ⬜ planned | Zero-reference cached installers, backup-first |
 | Stale drivers | ⬜ planned | Superseded driver packages, active-driver check |
 | Component store | ⬜ planned | Supported cleanup APIs only |
@@ -211,8 +212,8 @@ Duplicate skill ids exist, so load by full path:
    reference screens, disk-table study.
 1. (done in v0.1.0) Scaffold Tauri 2 + React + TS + Tailwind; CI builds all OSes.
 2. (done in v0.2.0) Hardlink-aware scanner + sortable table + treemap + My Clutter (largest/oldest/duplicates).
-3. (shipping in v0.3.0) Trash-first delete with preview → approve → recycle bin. Safe cleaner modules (§2.3) land in v0.4.
-4. Premium visual pass + logo/icon + dark mode.
+3. (done in v0.3.0) Trash-first delete with preview → approve → recycle bin.
+4. (next, v0.4) Safe cleaner modules (§2.3) with backup-first + approve flow; dark mode.
 5. Beta: dogfood on real machines (this PC first), MIT release v0.1.
 6. macOS modules, then Linux modules; auto-update; stores.
 
