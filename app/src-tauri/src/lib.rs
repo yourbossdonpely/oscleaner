@@ -375,11 +375,167 @@ fn find_duplicates(path: String) -> Result<DupReport, String> {
     Ok(DupReport { groups, errors })
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrashItem {
+    path: String,
+    ok: bool,
+    error: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrashReport {
+    results: Vec<TrashItem>,
+    trashed: u64,
+    failed: u64,
+}
+
+const TRASH_CAP: usize = 500;
+
+/// Collapse `.` and `..` lexically (no symlink resolution).
+fn lexical_normal(p: &Path) -> PathBuf {
+    use std::path::Component;
+    let mut head = PathBuf::new();
+    let mut parts: Vec<std::ffi::OsString> = Vec::new();
+    for c in p.components() {
+        match c {
+            Component::Prefix(p) => head.push(p.as_os_str()),
+            Component::RootDir => head.push(std::path::MAIN_SEPARATOR.to_string()),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                parts.pop();
+            }
+            Component::Normal(s) => parts.push(s.to_os_string()),
+        }
+    }
+    for part in parts {
+        head.push(part);
+    }
+    head
+}
+
+/// Directories the trash command will never accept, even when asked.
+fn protected_dirs() -> Vec<PathBuf> {
+    let mut v: Vec<PathBuf> = Vec::new();
+    #[cfg(windows)]
+    {
+        for c in 'C'..='Z' {
+            let root = PathBuf::from(format!("{c}:\\"));
+            if root.exists() {
+                v.push(root);
+            }
+        }
+        for var in ["USERPROFILE", "SystemRoot"] {
+            if let Ok(h) = std::env::var(var) {
+                v.push(PathBuf::from(h));
+            }
+        }
+        for var in ["ProgramFiles", "ProgramFiles(x86)"] {
+            if let Ok(h) = std::env::var(var) {
+                v.push(PathBuf::from(h));
+            }
+        }
+        if let Ok(w) = std::env::var("SystemRoot") {
+            v.push(PathBuf::from(&w).join("System32"));
+            v.push(PathBuf::from(&w).join("SysWOW64"));
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        for p in ["/", "/bin", "/sbin", "/usr", "/etc", "/System", "/Library"] {
+            v.push(PathBuf::from(p));
+        }
+        if let Ok(h) = std::env::var("HOME") {
+            v.push(PathBuf::from(h));
+        }
+    }
+    v.into_iter().map(|p| lexical_normal(&p)).collect()
+}
+
+fn refusal(path: &str) -> Option<String> {
+    let p = Path::new(path);
+    if !p.is_absolute() {
+        return Some("Refusing: path must be absolute".to_string());
+    }
+    let norm = lexical_normal(p);
+    let canon = std::fs::canonicalize(p).ok();
+    for prot in protected_dirs() {
+        if norm == prot {
+            return Some(format!("Refusing: {} is protected", prot.display()));
+        }
+        if let Some(c) = &canon {
+            if *c == prot {
+                return Some(format!(
+                    "Refusing: {} resolves to protected {}",
+                    path,
+                    prot.display()
+                ));
+            }
+        }
+    }
+    None
+}
+
+/// Move paths to the OS recycle bin / trash. Never a permanent delete.
+/// Refuses protected locations, caps batch size, reports per-path results.
+#[tauri::command]
+fn trash_delete(paths: Vec<String>) -> Result<TrashReport, String> {
+    if paths.is_empty() {
+        return Err("Nothing to delete.".to_string());
+    }
+    if paths.len() > TRASH_CAP {
+        return Err(format!("Refusing: too many at once ({} max).", TRASH_CAP));
+    }
+    let mut results: Vec<TrashItem> = Vec::with_capacity(paths.len());
+    let mut trashed: u64 = 0;
+    let mut failed: u64 = 0;
+    for path in &paths {
+        if let Some(reason) = refusal(path) {
+            results.push(TrashItem {
+                path: path.clone(),
+                ok: false,
+                error: reason,
+            });
+            failed += 1;
+            continue;
+        }
+        match trash::delete(path) {
+            Ok(()) => {
+                results.push(TrashItem {
+                    path: path.clone(),
+                    ok: true,
+                    error: String::new(),
+                });
+                trashed += 1;
+            }
+            Err(e) => {
+                results.push(TrashItem {
+                    path: path.clone(),
+                    ok: false,
+                    error: e.to_string(),
+                });
+                failed += 1;
+            }
+        }
+    }
+    Ok(TrashReport {
+        results,
+        trashed,
+        failed,
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![scan_dir, list_roots, find_duplicates])
+        .invoke_handler(tauri::generate_handler![
+            scan_dir,
+            list_roots,
+            find_duplicates,
+            trash_delete
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -459,5 +615,65 @@ mod tests {
         // f1.bin counted once despite two names: 1600, not 2600.
         assert_eq!(node.size, 1600);
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn normalizer_collapses_dots() {
+        #[cfg(windows)]
+        {
+            assert_eq!(
+                lexical_normal(Path::new("C:\\a\\..\\b\\.\\c")),
+                PathBuf::from("C:\\b\\c")
+            );
+            assert_eq!(lexical_normal(Path::new("C:\\..")), PathBuf::from("C:\\"));
+        }
+        #[cfg(not(windows))]
+        {
+            assert_eq!(
+                lexical_normal(Path::new("/a/../b/./c")),
+                PathBuf::from("/b/c")
+            );
+        }
+    }
+
+    #[test]
+    fn trash_roundtrip_moves_files_away() {
+        let dir = fixture("trash");
+        let a = dir.join("a").join("f1.bin");
+        let b = dir.join("top.bin");
+        let report = trash_delete(vec![
+            a.to_string_lossy().into_owned(),
+            b.to_string_lossy().into_owned(),
+        ])
+        .unwrap();
+        assert_eq!(report.trashed, 2);
+        assert_eq!(report.failed, 0);
+        assert!(!a.exists());
+        assert!(!b.exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn trash_refuses_protected_and_missing() {
+        let missing = std::env::temp_dir().join("oc-test-nope-12345-missing.bin");
+        let home = std::env::var("USERPROFILE")
+            .or_else(|_| std::env::var("HOME"))
+            .unwrap_or_default();
+        let report = trash_delete(vec![
+            "C:\\".to_string(),
+            home,
+            missing.to_string_lossy().into_owned(),
+        ])
+        .unwrap();
+        assert_eq!(report.trashed, 0);
+        assert_eq!(report.failed, 3);
+        assert!(report.results.iter().all(|r| !r.ok));
+    }
+
+    #[test]
+    fn trash_rejects_empty_and_huge_lists() {
+        assert!(trash_delete(vec![]).is_err());
+        let big = vec!["C:\\x".to_string(); TRASH_CAP + 1];
+        assert!(trash_delete(big).is_err());
     }
 }
