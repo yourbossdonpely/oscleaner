@@ -67,6 +67,7 @@ pub struct Roots {
     roots: Vec<String>,
     home: String,
     temp: String,
+    os: String,
 }
 
 fn unix_secs(t: SystemTime) -> u64 {
@@ -297,6 +298,7 @@ fn list_roots() -> Roots {
         roots,
         home,
         temp: std::env::temp_dir().to_string_lossy().into_owned(),
+        os: std::env::consts::OS.to_string(),
     }
 }
 
@@ -945,6 +947,457 @@ fn restart_elevated() -> Result<(), String> {
     }
 }
 
+// ---- Stale drivers (Windows, report only in v0.5) ----
+
+#[derive(Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DriverEntry {
+    published: String,
+    original: String,
+    provider: String,
+    class_name: String,
+    version: String,
+    size: u64,
+    superseded: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriverReport {
+    drivers: Vec<DriverEntry>,
+    total_bytes: u64,
+    store_bytes: u64,
+}
+
+/// Parse `pnputil /enum-drivers` output into entries (size filled later).
+fn parse_pnputil(text: &str) -> Vec<DriverEntry> {
+    let mut out: Vec<DriverEntry> = Vec::new();
+    let mut cur: HashMap<String, String> = HashMap::new();
+    let mut flush = |cur: &mut HashMap<String, String>, out: &mut Vec<DriverEntry>| {
+        if let Some(published) = cur.remove("Published Name") {
+            out.push(DriverEntry {
+                published,
+                original: cur.remove("Original Name").unwrap_or_default(),
+                provider: cur.remove("Provider Name").unwrap_or_default(),
+                class_name: cur.remove("Class Name").unwrap_or_default(),
+                version: cur.remove("Driver Version").unwrap_or_default(),
+                size: 0,
+                superseded: false,
+            });
+        }
+        cur.clear();
+    };
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            flush(&mut cur, &mut out);
+            continue;
+        }
+        if let Some((k, v)) = line.split_once(':') {
+            cur.insert(k.trim().to_string(), v.trim().to_string());
+        }
+    }
+    flush(&mut cur, &mut out);
+    out
+}
+
+/// Compare dotted versions numerically ("32.0.15.1" > "31.9.0").
+fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+    let norm = |s: &str| {
+        s.rsplit(',')
+            .next()
+            .unwrap_or(s)
+            .split('.')
+            .map(|p| p.parse::<u64>().unwrap_or(0))
+            .collect::<Vec<_>>()
+    };
+    let (mut av, mut bv) = (norm(a), norm(b));
+    let n = av.len().max(bv.len());
+    av.resize(n, 0);
+    bv.resize(n, 0);
+    av.cmp(&bv).then_with(|| a.cmp(b))
+}
+
+/// Match `nv_dispi.inf` to every `nv_dispi.inf_amd64_<hash>` store dir
+/// (case-insensitive; several can share one original name).
+fn match_repo_dirs<'a>(original: &str, dirs: &'a [String]) -> Vec<&'a str> {
+    let prefix = format!("{original}_").to_lowercase();
+    dirs.iter()
+        .map(String::as_str)
+        .filter(|d| d.to_lowercase().starts_with(&prefix))
+        .collect()
+}
+
+/// Flag all-but-newest within each (provider, class) group.
+fn flag_superseded(drivers: &mut [DriverEntry]) {
+    use std::collections::HashMap;
+    let mut groups: HashMap<(String, String), Vec<usize>> = HashMap::new();
+    for (i, d) in drivers.iter().enumerate() {
+        if !d.published.to_lowercase().starts_with("oem") {
+            continue;
+        }
+        groups
+            .entry((d.provider.to_lowercase(), d.class_name.to_lowercase()))
+            .or_default()
+            .push(i);
+    }
+    for idxs in groups.values() {
+        if idxs.len() < 2 {
+            continue;
+        }
+        let mut best = idxs[0];
+        for &i in &idxs[1..] {
+            if compare_versions(&drivers[i].version, &drivers[best].version)
+                == std::cmp::Ordering::Greater
+            {
+                best = i;
+            }
+        }
+        for &i in idxs {
+            if i != best {
+                drivers[i].superseded = true;
+            }
+        }
+    }
+}
+
+#[tauri::command]
+fn scan_drivers() -> Result<DriverReport, String> {
+    #[cfg(not(windows))]
+    {
+        return Err("Stale drivers: Windows only.".to_string());
+    }
+    #[cfg(windows)]
+    {
+        let out = std::process::Command::new("pnputil")
+            .arg("/enum-drivers")
+            .output()
+            .map_err(|e| format!("pnputil failed to run: {e}"))?;
+        if !out.status.success() {
+            return Err(format!(
+                "pnputil failed: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            ));
+        }
+        let mut drivers = parse_pnputil(&String::from_utf8_lossy(&out.stdout));
+        // One walk of the driver store: full-store total plus a per-dir
+        // map joined to packages by original-name prefix.
+        let repo = Path::new(r"C:\Windows\System32\DriverStore\FileRepository");
+        let mut sizes: HashMap<String, u64> = HashMap::new();
+        let mut store_bytes: u64 = 0;
+        if let Ok(entries) = std::fs::read_dir(repo) {
+            for e in entries.flatten() {
+                let p = e.path();
+                if !e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                    continue;
+                }
+                let name = p
+                    .file_name()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                let mut total: u64 = 0;
+                for f in WalkDir::new(&p).min_depth(1).follow_links(false).into_iter().flatten()
+                {
+                    if f.file_type().is_file() {
+                        total += f.path().metadata().map(|m| m.len()).unwrap_or(0);
+                    }
+                }
+                store_bytes += total;
+                sizes.insert(name, total);
+            }
+        }
+        let names: Vec<String> = sizes.keys().cloned().collect();
+        for d in &mut drivers {
+            d.size = match_repo_dirs(&d.original, &names)
+                .iter()
+                .map(|dir| sizes.get(*dir).copied().unwrap_or(0))
+                .sum();
+        }
+        flag_superseded(&mut drivers);
+        drivers.sort_by(|a, b| b.size.cmp(&a.size));
+        let total_bytes = drivers.iter().map(|d| d.size).sum();
+        Ok(DriverReport {
+            drivers,
+            total_bytes,
+            store_bytes,
+        })
+    }
+}
+
+// ---- AppX cleanup (Windows) ----
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AppxEntry {
+    name: String,
+    full_name: String,
+    version: String,
+    size: u64,
+    provisioned: bool,
+    blocked: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppxReport {
+    apps: Vec<AppxEntry>,
+    total_bytes: u64,
+}
+
+/// Packages that must never be removed, even when asked.
+fn appx_blocked(name: &str, is_framework: bool) -> Option<&'static str> {
+    if is_framework {
+        return Some("framework package");
+    }
+    const NEVER: &[&str] = &[
+        "microsoft.windows.shellexperiencehost",
+        "microsoft.windows.startmenuexperiencehost",
+        "microsoft.windows.search",
+        "microsoft.windows.cortana",
+        "windows.immersivecontrolpanel",
+        "microsoft.windowsstore",
+        "microsoft.storepurchaseapp",
+        "microsoft.desktopappinstaller",
+        "microsoft.microsoftedge.stable",
+        "microsoft.microsoftedge",
+        "microsoft.ui.xaml.2.7",
+        "microsoft.ui.xaml.2.8",
+        "microsoft.vclibs.140.00",
+        "microsoft.vclibs.140.00.uwpdesktop",
+        "microsoft.windowsappsdk.1.5",
+        "microsoft.windowsappsdk.1.6",
+        "windows.devicesflow",
+        "sechealthui",
+    ];
+    let lower = name.to_lowercase();
+    if NEVER.iter().any(|n| lower.starts_with(n)) {
+        return Some("system package");
+    }
+    None
+}
+
+fn safe_arg(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() < 300
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+}
+
+fn parse_appx_list(json_text: &str) -> Vec<(String, String, String, bool)> {
+    let v: serde_json::Value = match serde_json::from_str(json_text) {
+        Ok(v) => v,
+        Err(_) => return vec![],
+    };
+    let items: Vec<&serde_json::Value> = match &v {
+        serde_json::Value::Array(a) => a.iter().collect(),
+        serde_json::Value::Object(_) => vec![&v],
+        _ => vec![],
+    };
+    let mut out = Vec::new();
+    for it in items {
+        let get = |k: &str| it.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let name = get("Name");
+        if name.is_empty() {
+            continue;
+        }
+        let is_framework = it
+            .get("IsFramework")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false);
+        out.push((name, get("PackageFullName"), get("Version"), is_framework));
+    }
+    out
+}
+
+fn dir_size(path: &Path) -> u64 {
+    let mut total: u64 = 0;
+    for f in WalkDir::new(path)
+        .min_depth(1)
+        .follow_links(false)
+        .into_iter()
+        .flatten()
+    {
+        if f.file_type().is_file() {
+            total += f.path().metadata().map(|m| m.len()).unwrap_or(0);
+        }
+    }
+    total
+}
+
+#[tauri::command]
+fn scan_appx() -> Result<AppxReport, String> {
+    #[cfg(not(windows))]
+    {
+        return Err("AppX cleanup: Windows only.".to_string());
+    }
+    #[cfg(windows)]
+    {
+        let ps = r#"Get-AppxPackage | Select-Object Name,PackageFullName,Version,IsFramework | ConvertTo-Json -Compress -Depth 3"#;
+        let out = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", ps])
+            .output()
+            .map_err(|e| format!("AppX query failed to run: {e}"))?;
+        if !out.status.success() {
+            return Err(format!(
+                "AppX query failed: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            ));
+        }
+        let prov: HashSet<String> = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                "Get-AppxProvisionedPackage -Online | Select-Object -ExpandProperty DisplayName",
+            ])
+            .output()
+            .ok()
+            .map(|o| {
+                String::from_utf8_lossy(&o.stdout)
+                    .lines()
+                    .map(|l| l.trim().to_lowercase())
+                    .filter(|l| !l.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut apps: Vec<AppxEntry> = Vec::new();
+        for (name, full_name, version, is_framework) in
+            parse_appx_list(&String::from_utf8_lossy(&out.stdout))
+        {
+            // Size from the install location is expensive per app; do a
+            // bounded lookup via the package dir name when present.
+            let mut size: u64 = 0;
+            let base = Path::new(r"C:\Program Files\WindowsApps").join(&full_name);
+            if base.is_dir() {
+                size = dir_size(&base);
+            }
+            apps.push(AppxEntry {
+                blocked: appx_blocked(&name, is_framework)
+                    .unwrap_or("")
+                    .to_string(),
+                provisioned: prov.contains(&name.to_lowercase()),
+                name,
+                full_name,
+                version,
+                size,
+            });
+        }
+        apps.sort_by(|a, b| b.size.cmp(&a.size));
+        let total_bytes = apps.iter().map(|a| a.size).sum();
+        Ok(AppxReport { apps, total_bytes })
+    }
+}
+
+#[tauri::command]
+fn remove_appx(packages: Vec<String>) -> Result<TrashReport, String> {
+    if packages.is_empty() {
+        return Err("Nothing selected.".to_string());
+    }
+    if packages.len() > TRASH_CAP {
+        return Err(format!("Refusing: too many at once ({} max).", TRASH_CAP));
+    }
+    let mut results: Vec<TrashItem> = Vec::with_capacity(packages.len());
+    let mut trashed: u64 = 0;
+    let mut failed: u64 = 0;
+    for full in &packages {
+        let name = full.split('_').next().unwrap_or(full);
+        let mut error = String::new();
+        if !safe_arg(full) {
+            error = "Refusing: unexpected package name.".to_string();
+        } else if let Some(reason) = appx_blocked(name, false) {
+            error = format!("Refusing: {reason}.");
+        } else {
+            let ps = format!("Remove-AppxPackage -Package '{full}'");
+            match std::process::Command::new("powershell")
+                .args(["-NoProfile", "-Command", &ps])
+                .output()
+            {
+                Ok(o) if o.status.success() => {}
+                Ok(o) => {
+                    error = String::from_utf8_lossy(&o.stderr).trim().to_string();
+                    if error.is_empty() {
+                        error = "Removal failed.".to_string();
+                    }
+                }
+                Err(e) => {
+                    error = e.to_string();
+                }
+            }
+        }
+        if error.is_empty() {
+            results.push(TrashItem {
+                path: full.clone(),
+                ok: true,
+                error: String::new(),
+            });
+            trashed += 1;
+        } else {
+            results.push(TrashItem {
+                path: full.clone(),
+                ok: false,
+                error,
+            });
+            failed += 1;
+        }
+    }
+    Ok(TrashReport {
+        results,
+        trashed,
+        failed,
+    })
+}
+
+// ---- Component store (Windows, DISM, admin only) ----
+
+fn dism_args() -> Vec<&'static str> {
+    // StartComponentCleanup WITHOUT ResetBase: keeps updates uninstallable.
+    // Never runs AnalyzeComponentStore (known-flaky hang path).
+    vec![
+        "/Online",
+        "/Cleanup-Image",
+        "/StartComponentCleanup",
+    ]
+}
+
+#[tauri::command]
+fn run_component_cleanup() -> Result<TrashReport, String> {
+    #[cfg(not(windows))]
+    {
+        return Err("Component store: Windows only.".to_string());
+    }
+    #[cfg(windows)]
+    {
+        if !is_elevated() {
+            return Err("Administrator rights needed. Restart elevated first.".to_string());
+        }
+        let system_root =
+            std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".to_string());
+        let dism = format!("{system_root}\\System32\\Dism.exe");
+        let t0 = std::time::Instant::now();
+        let out = std::process::Command::new(&dism)
+            .args(dism_args())
+            .output()
+            .map_err(|e| format!("DISM failed to run: {e}"))?;
+        let secs = t0.elapsed().as_secs();
+        let text = String::from_utf8_lossy(&out.stdout).into_owned();
+        let tail: String = text.chars().rev().take(1500).collect::<String>().chars().rev().collect();
+        let ok = out.status.success();
+        Ok(TrashReport {
+            results: vec![TrashItem {
+                path: format!("Component cleanup ({}s)", secs),
+                ok,
+                error: if ok {
+                    tail
+                } else {
+                    format!("exit {}: {tail}", out.status)
+                },
+            }],
+            trashed: u64::from(ok),
+            failed: u64::from(!ok),
+        })
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -960,7 +1413,11 @@ pub fn run() {
             restore_orphans,
             scan_remnants,
             is_elevated,
-            restart_elevated
+            restart_elevated,
+            scan_drivers,
+            scan_appx,
+            remove_appx,
+            run_component_cleanup
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -1161,6 +1618,57 @@ mod tests {
         assert!(outside.exists());
         let _ = fs::remove_dir_all(&dir);
         let _ = fs::remove_file(&outside);
+    }
+
+    #[test]
+    fn pnputil_parsing_and_superseded_flags() {
+        let sample = "Published Name:     oem9.inf\nOriginal Name:      nv_dispi.inf\nProvider Name:      NVIDIA\nClass Name:         Display adapters\nDriver Version:     07/10/2024,32.0.15.6600\n\nPublished Name:     oem62.inf\nOriginal Name:      nv_dispi.inf\nProvider Name:      NVIDIA\nClass Name:         Display adapters\nDriver Version:     01/12/2024,31.0.15.1234\n";
+        let mut drivers = parse_pnputil(sample);
+        assert_eq!(drivers.len(), 2);
+        assert_eq!(drivers[0].published, "oem9.inf");
+        flag_superseded(&mut drivers);
+        let old = drivers.iter().find(|d| d.published == "oem62.inf").unwrap();
+        let new = drivers.iter().find(|d| d.published == "oem9.inf").unwrap();
+        assert!(old.superseded);
+        assert!(!new.superseded);
+        assert_eq!(
+            compare_versions("32.0.15.6600", "31.0.15.1234"),
+            std::cmp::Ordering::Greater
+        );
+        let dirs = vec![
+            "nv_dispi.inf_amd64_deadbeef".to_string(),
+            "NV_DISPI.inf_amd64_cafe1234".to_string(),
+        ];
+        assert_eq!(
+            match_repo_dirs("nv_dispi.inf", &dirs),
+            vec![
+                "nv_dispi.inf_amd64_deadbeef",
+                "NV_DISPI.inf_amd64_cafe1234"
+            ]
+        );
+        assert!(match_repo_dirs("other.inf", &dirs).is_empty());
+    }
+
+    #[test]
+    fn appx_parsing_and_blocklist() {
+        let json = r#"[{"Name":"Some.App","PackageFullName":"Some.App_1.0_x64__abc","Version":"1.0.0.0","IsFramework":false},{"Name":"Microsoft.Windows.ShellExperienceHost","PackageFullName":"Microsoft.Windows.ShellExperienceHost_1.0_neutral__xyz","Version":"1.0.0.0","IsFramework":false}]"#;
+        let apps = parse_appx_list(json);
+        assert_eq!(apps.len(), 2);
+        assert_eq!(apps[0].0, "Some.App");
+        assert!(appx_blocked("Some.App", false).is_none());
+        assert!(appx_blocked("Microsoft.Windows.ShellExperienceHost", false).is_some());
+        assert!(appx_blocked("Anything", true).is_some());
+        assert!(safe_arg("Some.App_1.0_x64__abc"));
+        assert!(!safe_arg("a'b;rm"));
+        assert!(!safe_arg(""));
+    }
+
+    #[test]
+    fn dism_args_have_no_resetbase_or_analyze() {
+        let args = dism_args();
+        assert!(args.contains(&"/StartComponentCleanup"));
+        assert!(!args.iter().any(|a| *a == "/ResetBase"));
+        assert!(!args.iter().any(|a| a.contains("Analyze")));
     }
 
     #[test]

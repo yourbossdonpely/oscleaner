@@ -50,6 +50,7 @@ interface Roots {
   roots: string[];
   home: string;
   temp: string;
+  os: string;
 }
 
 interface OrphanEntry {
@@ -77,7 +78,37 @@ interface RemnantReport {
   errors: number;
 }
 
-type View = "care" | "disk" | "clutter" | "orphans" | "sweep" | "about";
+interface DriverEntry {
+  published: string;
+  original: string;
+  provider: string;
+  className: string;
+  version: string;
+  size: number;
+  superseded: boolean;
+}
+
+interface DriverReport {
+  drivers: DriverEntry[];
+  totalBytes: number;
+  storeBytes: number;
+}
+
+interface AppxEntry {
+  name: string;
+  fullName: string;
+  version: string;
+  size: number;
+  provisioned: boolean;
+  blocked: string;
+}
+
+interface AppxReport {
+  apps: AppxEntry[];
+  totalBytes: number;
+}
+
+type View = "care" | "disk" | "clutter" | "orphans" | "sweep" | "drivers" | "appx" | "component" | "about";
 
 function fmtBytes(n: number): string {
   if (!Number.isFinite(n) || n < 0) return "—";
@@ -120,6 +151,9 @@ const THEMES: Record<View, string> = {
   clutter: "theme-clutter",
   orphans: "theme-orphans",
   sweep: "theme-sweep",
+  drivers: "theme-drivers",
+  appx: "theme-appx",
+  component: "theme-component",
   about: "theme-about",
 };
 
@@ -185,6 +219,9 @@ export default function App() {
           <div className="cap">MODULES</div>
           <NavBtn id="orphans" view={view} setView={setView} label="Installer Orphans" icon="▤" />
           <NavBtn id="sweep" view={view} setView={setView} label="Remnant Sweep" icon="❖" />
+          <NavBtn id="drivers" view={view} setView={setView} label="Stale Drivers" icon="⚙" />
+          <NavBtn id="appx" view={view} setView={setView} label="AppX Cleanup" icon="▣" />
+          <NavBtn id="component" view={view} setView={setView} label="Component Store" icon="⬢" />
           <button className="navbtn" disabled title="Coming in v0.3">
             <span className="ni">◧</span>App Leftovers<span className="soon">soon</span>
           </button>
@@ -192,7 +229,7 @@ export default function App() {
           <NavBtn id="about" view={view} setView={setView} label="About" icon="ⓘ" />
         </nav>
         <div className="sidefoot">
-          <span>v0.4.0 · cleaner modules</span>
+          <span>v0.5.0 · system modules</span>
           <button className="themebtn" onClick={toggleDark} title="Toggle dark mode">
             {dark ? "☀" : "◐"}
           </button>
@@ -204,6 +241,9 @@ export default function App() {
         {view === "clutter" && <MyClutter />}
         {view === "orphans" && <OrphansScreen />}
         {view === "sweep" && <SweepScreen />}
+        {view === "drivers" && <DriversScreen />}
+        {view === "appx" && <AppxScreen />}
+        {view === "component" && <ComponentScreen />}
         {view === "about" && <About />}
       </main>
       </div>
@@ -230,7 +270,7 @@ function NavBtn(props: {
 }
 
 function useRoots(def: (r: Roots) => string) {
-  const [roots, setRoots] = useState<Roots>({ roots: [], home: "", temp: "" });
+  const [roots, setRoots] = useState<Roots>({ roots: [], home: "", temp: "", os: "" });
   const [path, setPath] = useState("");
   useEffect(() => {
     invoke<Roots>("list_roots")
@@ -308,7 +348,7 @@ function SmartCare() {
           <h1>Smart Care</h1>
           <p>One scan for everything — junk, clutter, and space hogs.</p>
         </div>
-        <span className="vtag">v0.4</span>
+        <span className="vtag">v0.5</span>
       </div>
       <div className="card hero">
         <div className="scanrow">
@@ -456,7 +496,7 @@ function DiskInsight() {
           <h1>Disk Insight</h1>
           <p>Browse folders by real size — table or treemap.</p>
         </div>
-        <span className="vtag">v0.4</span>
+        <span className="vtag">v0.5</span>
       </div>
       <div className="card hero">
         <div className="scanrow">
@@ -799,6 +839,17 @@ const ACTION_COPY = {
     blurb: "They will be moved back to their original folder.",
     confirm: (n: number) => `Restore ${n}`,
   },
+  remove: {
+    title: "Remove these apps?",
+    blurb: "They will be uninstalled for your user account. System and framework packages can never be selected.",
+    confirm: (n: number) => `Remove ${n}`,
+  },
+  cleanup: {
+    title: "Run component cleanup?",
+    blurb:
+      "Windows will clean its update component store with StartComponentCleanup. Takes several minutes. No ResetBase: installed updates stay uninstallable.",
+    confirm: () => "Run cleanup",
+  },
 };
 
 function ConfirmModal(props: {
@@ -806,7 +857,7 @@ function ConfirmModal(props: {
   bytes: number;
   busy: boolean;
   report: TrashReport | null;
-  action: "trash" | "backup" | "restore";
+  action: "trash" | "backup" | "restore" | "remove" | "cleanup";
   onConfirm: () => void;
   onClose: () => void;
 }) {
@@ -816,10 +867,16 @@ function ConfirmModal(props: {
         {props.report === null ? (
           <>
             <h2>{ACTION_COPY[props.action].title}</h2>
-            <p className="muted">
-              {props.paths.length} files ({fmtBytes(props.bytes)}).{" "}
-              {ACTION_COPY[props.action].blurb}
-            </p>
+            {props.action !== "cleanup" && (
+              <p className="muted">
+                {props.paths.length} files ({fmtBytes(props.bytes)}).{" "}
+                {ACTION_COPY[props.action].blurb}
+              </p>
+            )}
+            {props.action === "cleanup" && (
+              <p className="muted">{ACTION_COPY[props.action].blurb}</p>
+            )}
+            {props.action !== "cleanup" && (
             <div className="modallist">
               {props.paths.map((p) => (
                 <div key={p} className="modpath" title={p}>
@@ -827,12 +884,17 @@ function ConfirmModal(props: {
                 </div>
               ))}
             </div>
+            )}
             <div className="modalbtns">
               <button className="btn" onClick={props.onClose} disabled={props.busy}>
                 Cancel
               </button>
               <button
-                className={props.action === "trash" ? "btn danger" : "btn primary"}
+                className={
+                  props.action === "trash" || props.action === "remove"
+                    ? "btn danger"
+                    : "btn primary"
+                }
                 onClick={props.onConfirm}
                 disabled={props.busy}
               >
@@ -846,8 +908,13 @@ function ConfirmModal(props: {
               {props.report.failed === 0 ? "Done" : "Finished with errors"}
             </h2>
             <p className="muted">
-              {props.report.trashed} moved, {props.report.failed} failed.
+              {props.action === "cleanup"
+                ? "Windows reported success."
+                : `${props.report.trashed} moved, ${props.report.failed} failed.`}
             </p>
+            {props.action === "cleanup" && props.report.results[0]?.error !== "" && (
+              <pre className="logout">{props.report.results[0]?.error}</pre>
+            )}
             <div className="modallist">
               {props.report.results.map((r) => (
                 <div
@@ -986,7 +1053,7 @@ function MyClutter() {
           <h1>My Clutter</h1>
           <p>Large files, old files, and true duplicates by content hash.</p>
         </div>
-        <span className="vtag">v0.4</span>
+        <span className="vtag">v0.5</span>
       </div>
       <div className="card hero">
         <div className="scanrow">
@@ -1234,7 +1301,7 @@ function OrphansScreen() {
           <h1>Installer Orphans</h1>
           <p>Cached installers nothing references — move to backup first.</p>
         </div>
-        <span className="vtag">v0.4</span>
+        <span className="vtag">v0.5</span>
       </div>
       {unsupported ? (
         <div className="card note">
@@ -1500,7 +1567,7 @@ function SweepScreen() {
           <h1>Remnant Sweep</h1>
           <p>Empty folders and stale temp files — preview, then trash.</p>
         </div>
-        <span className="vtag">v0.4</span>
+        <span className="vtag">v0.5</span>
       </div>
       <div className="card hero">
         <div className="scanrow">
@@ -1574,6 +1641,392 @@ function SweepScreen() {
   );
 }
 
+function DriversScreen() {
+  const [report, setReport] = useState<DriverReport | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [unsupported, setUnsupported] = useState(false);
+
+  async function runScan() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      setReport(await invoke<DriverReport>("scan_drivers"));
+    } catch (e) {
+      const msg = errText(e);
+      if (msg.includes("Windows only")) setUnsupported(true);
+      else setError(msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const flagged = report?.drivers.filter((d) => d.superseded) ?? [];
+  const flaggedBytes = flagged.reduce((s, d) => s + d.size, 0);
+
+  return (
+    <div>
+      <div className="topbar">
+        <div>
+          <h1>Stale Drivers</h1>
+          <p>Third-party driver packages by size — oldest per device flagged.</p>
+        </div>
+        <span className="vtag">v0.5</span>
+      </div>
+      {unsupported ? (
+        <div className="card note">
+          This module reads the Windows driver store, so it only runs on
+          Windows.
+        </div>
+      ) : (
+        <>
+          <div className="card hero">
+            <div className="scanrow">
+              <button className="btn primary" onClick={() => void runScan()} disabled={busy}>
+                {busy ? "Reading…" : "List driver packages"}
+              </button>
+            </div>
+            {error !== "" && <div className="err">{error}</div>}
+          </div>
+          {report && (
+            <>
+              <div className="stats">
+                <Stat label="Driver store" value={fmtBytes(report.storeBytes)} />
+                <Stat label="Packages" value={fmtInt(report.drivers.length)} />
+                <Stat label="Likely superseded" value={fmtInt(flagged.length)} />
+                <Stat label="Reclaimable" value={fmtBytes(flaggedBytes)} />
+              </div>
+              <div className="card tablecard">
+                <table className="dtable">
+                  <thead>
+                    <tr>
+                      <th>Published</th>
+                      <th>Provider</th>
+                      <th>Class</th>
+                      <th>Version</th>
+                      <th className="num">Size</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.drivers.map((d) => (
+                      <tr key={d.published} className={d.superseded ? "picked" : ""}>
+                        <td>
+                          <span className="fname" title={d.original}>
+                            {d.published}
+                          </span>
+                        </td>
+                        <td>{d.provider}</td>
+                        <td>{d.className}</td>
+                        <td>{d.version}</td>
+                        <td className="num">{fmtBytes(d.size)}</td>
+                        <td>
+                          {d.superseded ? (
+                            <span className="badge warn">superseded?</span>
+                          ) : (
+                            <span className="muted">current</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="card note">
+                Read-only in v0.5. Flags mean “same provider and class, older
+                than the newest” — verify before removing anything. Per-package
+                sizes include content shared with other packages. Removal with
+                active-driver verification lands in v0.6.
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function AppxScreen() {
+  const [report, setReport] = useState<AppxReport | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirming, setConfirming] = useState(false);
+  const [rep, setRep] = useState<TrashReport | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [unsupported, setUnsupported] = useState(false);
+
+  async function runScan() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      setReport(await invoke<AppxReport>("scan_appx"));
+    } catch (e) {
+      const msg = errText(e);
+      if (msg.includes("Windows only")) setUnsupported(true);
+      else setError(msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toggle(full: string) {
+    setSelected((s) => {
+      const c = new Set(s);
+      if (c.has(full)) c.delete(full);
+      else c.add(full);
+      return c;
+    });
+  }
+
+  const selPaths = [...selected];
+  const selBytes = selPaths.reduce((s, p) => {
+    const f = report?.apps.find((a) => a.fullName === p);
+    return s + (f?.size ?? 0);
+  }, 0);
+
+  async function doRemove() {
+    if (selPaths.length === 0 || busy) return;
+    setBusy(true);
+    try {
+      const r = await invoke<TrashReport>("remove_appx", { packages: selPaths });
+      setRep(r);
+      const gone = new Set(r.results.filter((x) => x.ok).map((x) => x.path));
+      if (gone.size > 0) {
+        setReport((prev) =>
+          prev === null
+            ? prev
+            : { ...prev, apps: prev.apps.filter((a) => !gone.has(a.fullName)) }
+        );
+      }
+    } catch (e) {
+      setError(errText(e));
+      setConfirming(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function closeModal() {
+    setConfirming(false);
+    setRep(null);
+    setSelected(new Set());
+  }
+
+  return (
+    <div>
+      <div className="topbar">
+        <div>
+          <h1>AppX Cleanup</h1>
+          <p>Store apps by size — system packages can never be selected.</p>
+        </div>
+        <span className="vtag">v0.5</span>
+      </div>
+      {unsupported ? (
+        <div className="card note">
+          This module manages Windows Store apps, so it only runs on Windows.
+        </div>
+      ) : (
+        <>
+          <div className="card hero">
+            <div className="scanrow">
+              <button className="btn primary" onClick={() => void runScan()} disabled={busy}>
+                {busy ? "Listing…" : "List installed apps"}
+              </button>
+            </div>
+            {error !== "" && <div className="err">{error}</div>}
+          </div>
+          {report && (
+            <>
+              <div className="stats">
+                <Stat label="Installed size" value={fmtBytes(report.totalBytes)} />
+                <Stat label="Apps" value={fmtInt(report.apps.length)} />
+                <Stat
+                  label="Blocked"
+                  value={fmtInt(report.apps.filter((a) => a.blocked !== "").length)}
+                />
+              </div>
+              <div className="card tablecard">
+                <table className="dtable">
+                  <thead>
+                    <tr>
+                      <th className="checkcol" />
+                      <th>Name</th>
+                      <th>Version</th>
+                      <th className="num">Size</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.apps.map((a) => (
+                      <tr key={a.fullName} className={selected.has(a.fullName) ? "picked" : ""}>
+                        <td>
+                          {a.blocked !== "" ? (
+                            <span className="muted" title={a.blocked}>
+                              ⊘
+                            </span>
+                          ) : (
+                            <input
+                              type="checkbox"
+                              className="check"
+                              checked={selected.has(a.fullName)}
+                              onChange={() => toggle(a.fullName)}
+                              aria-label={`Select ${a.name}`}
+                            />
+                          )}
+                        </td>
+                        <td>
+                          <span className="fname" title={a.fullName}>
+                            {a.name}
+                          </span>
+                        </td>
+                        <td>{a.version}</td>
+                        <td className="num">{fmtBytes(a.size)}</td>
+                        <td>
+                          {a.blocked !== "" ? (
+                            <span className="badge">locked</span>
+                          ) : a.provisioned ? (
+                            <span className="muted">provisioned</span>
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {!confirming && (
+                <ReviewBar
+                  count={selPaths.length}
+                  bytes={selBytes}
+                  cta="Review & remove"
+                  onReview={() => {
+                    setRep(null);
+                    setConfirming(true);
+                  }}
+                  onClear={() => setSelected(new Set())}
+                />
+              )}
+              {confirming && (
+                <ConfirmModal
+                  paths={selPaths}
+                  bytes={selBytes}
+                  busy={busy}
+                  report={rep}
+                  action="remove"
+                  onConfirm={() => void doRemove()}
+                  onClose={closeModal}
+                />
+              )}
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ComponentScreen() {
+  const elevated = useElevated();
+  const [os, setOs] = useState("");
+  const [rep, setRep] = useState<TrashReport | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    invoke<Roots>("list_roots")
+      .then((r) => setOs(r.os))
+      .catch(() => {});
+  }, []);
+
+  async function goElevated() {
+    setBusy(true);
+    try {
+      await invoke("restart_elevated");
+      await getCurrentWindow().close();
+    } catch (e) {
+      setError(errText(e));
+      setBusy(false);
+    }
+  }
+
+  async function doRun() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await invoke<TrashReport>("run_component_cleanup");
+      setRep(r);
+    } catch (e) {
+      setError(errText(e));
+      setConfirming(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const unsupported = os !== "" && os !== "windows";
+
+  return (
+    <div>
+      <div className="topbar">
+        <div>
+          <h1>Component Store</h1>
+          <p>Windows&apos; own cleanup, run safely — no ResetBase, no Analyze.</p>
+        </div>
+        <span className="vtag">v0.5</span>
+      </div>
+      {unsupported ? (
+        <div className="card note">
+          This module runs Windows DISM, so it only runs on Windows.
+        </div>
+      ) : (
+        <>
+          {elevated === false && (
+            <AdminBanner onRestart={() => void goElevated()} busy={busy} />
+          )}
+          <div className="card hero">
+            <p className="muted" style={{ marginTop: 0 }}>
+              Runs <b>DISM StartComponentCleanup</b> — Microsoft&apos;s supported
+              WinSxS cleanup. Takes several minutes. Update backups are kept,
+              so installed updates stay uninstallable.
+            </p>
+            <div className="scanrow">
+              <button
+                className="btn primary"
+                onClick={() => {
+                  setRep(null);
+                  setConfirming(true);
+                }}
+                disabled={busy || elevated !== true}
+              >
+                Run cleanup
+              </button>
+            </div>
+            {error !== "" && <div className="err">{error}</div>}
+          </div>
+          {confirming && (
+            <ConfirmModal
+              paths={["Component store (WinSxS)"]}
+              bytes={0}
+              busy={busy}
+              report={rep}
+              action="cleanup"
+              onConfirm={() => void doRun()}
+              onClose={() => {
+                setConfirming(false);
+                setRep(null);
+              }}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function About() {
   return (
     <div>
@@ -1586,11 +2039,11 @@ function About() {
       <div className="card about">
         <img src="/icon.png" alt="OS Cleaner" className="aboutlogo" />
         <h2>OS Cleaner</h2>
-        <p className="muted">by Don Pely · v0.4.0 · MIT License</p>
+        <p className="muted">by Don Pely · v0.5.0 · MIT License</p>
         <p>
-          A cross-platform system cleaner and disk analyzer. v0.4 hunts
-          installer orphans and remnant files with backup-first safety —
-          plus dark mode.
+          A cross-platform system cleaner and disk analyzer. v0.5 reports
+          stale drivers, cleans Store apps, and runs the component store
+          cleanup — approve-first, nothing silent.
         </p>
         <button
           className="btn"
