@@ -55,7 +55,7 @@ All releases live on the [releases page](https://github.com/yourbossdonpely/oscl
 | Hash-based duplicates | ✅ v0.2 | BLAKE3 content matching, size-prefiltered |
 | Universal macOS | ✅ v0.2 | One binary for Intel + Apple Silicon |
 | Custom chrome + per-page themes | 🔨 on main | Rounded frameless window, every page its color |
-| Trash-first delete | ⬜ next (v0.3) | Preview → approve → recycle bin, never silent delete |
+| Trash-first delete | 🔨 on main | Preview → approve → recycle bin, never silent delete |
 | Installer orphans | ⬜ planned | Zero-reference cached installers, backup-first |
 | Stale drivers | ⬜ planned | Superseded driver packages, active-driver check |
 | Component store | ⬜ planned | Supported cleanup APIs only |
@@ -211,7 +211,7 @@ Duplicate skill ids exist, so load by full path:
    reference screens, disk-table study.
 1. (done in v0.1.0) Scaffold Tauri 2 + React + TS + Tailwind; CI builds all OSes.
 2. (done in v0.2.0) Hardlink-aware scanner + sortable table + treemap + My Clutter (largest/oldest/duplicates).
-3. (next, v0.3) Trash-first delete + first Safe cleaner modules with backup-first + approve flow.
+3. (shipping in v0.3.0) Trash-first delete with preview → approve → recycle bin. Safe cleaner modules (§2.3) land in v0.4.
 4. Premium visual pass + logo/icon + dark mode.
 5. Beta: dogfood on real machines (this PC first), MIT release v0.1.
 6. macOS modules, then Linux modules; auto-update; stores.

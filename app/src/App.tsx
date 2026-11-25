@@ -34,6 +34,18 @@ interface DupReport {
   errors: number;
 }
 
+interface TrashItem {
+  path: string;
+  ok: boolean;
+  error: string;
+}
+
+interface TrashReport {
+  results: TrashItem[];
+  trashed: number;
+  failed: number;
+}
+
 interface Roots {
   roots: string[];
   home: string;
@@ -130,7 +142,7 @@ export default function App() {
           <div className="cap">APP</div>
           <NavBtn id="about" view={view} setView={setView} label="About" icon="ⓘ" />
         </nav>
-        <div className="sidefoot">v0.2.0 · scan + insight</div>
+        <div className="sidefoot">v0.3.0 · scan + safe delete</div>
       </aside>
       <main className="main">
         {view === "care" && <SmartCare />}
@@ -240,7 +252,7 @@ function SmartCare() {
           <h1>Smart Care</h1>
           <p>One scan for everything — junk, clutter, and space hogs.</p>
         </div>
-        <span className="vtag">v0.2</span>
+        <span className="vtag">v0.3</span>
       </div>
       <div className="card hero">
         <div className="scanrow">
@@ -388,7 +400,7 @@ function DiskInsight() {
           <h1>Disk Insight</h1>
           <p>Browse folders by real size — table or treemap.</p>
         </div>
-        <span className="vtag">v0.2</span>
+        <span className="vtag">v0.3</span>
       </div>
       <div className="card hero">
         <div className="scanrow">
@@ -634,13 +646,24 @@ function TreemapView({ root }: { root: ScanNode }) {
   );
 }
 
-function FileTable({ files, showDate }: { files: FileEntry[]; showDate: boolean }) {
+function FileTable({
+  files,
+  showDate,
+  selected,
+  onToggle,
+}: {
+  files: FileEntry[];
+  showDate: boolean;
+  selected: Set<string>;
+  onToggle: (path: string) => void;
+}) {
   const shown = files.slice(0, 25);
   return (
     <div>
       <table className="dtable">
         <thead>
           <tr>
+            <th className="checkcol" />
             <th>Name</th>
             <th className="num">Size</th>
             {showDate && <th className="num">Modified</th>}
@@ -648,7 +671,16 @@ function FileTable({ files, showDate }: { files: FileEntry[]; showDate: boolean 
         </thead>
         <tbody>
           {shown.map((f) => (
-            <tr key={f.path}>
+            <tr key={f.path} className={selected.has(f.path) ? "picked" : ""}>
+              <td>
+                <input
+                  type="checkbox"
+                  className="check"
+                  checked={selected.has(f.path)}
+                  onChange={() => onToggle(f.path)}
+                  aria-label={`Select ${f.name}`}
+                />
+              </td>
               <td>
                 <span className="fname" title={f.path}>
                   {f.name}
@@ -670,11 +702,103 @@ function FileTable({ files, showDate }: { files: FileEntry[]; showDate: boolean 
   );
 }
 
+function ReviewBar(props: {
+  count: number;
+  bytes: number;
+  onReview: () => void;
+  onClear: () => void;
+}) {
+  if (props.count === 0) return null;
+  return (
+    <div className="reviewbar">
+      <span>
+        <b>{props.count}</b> selected · {fmtBytes(props.bytes)}
+      </span>
+      <button className="btn primary" onClick={props.onReview}>
+        Review &amp; delete
+      </button>
+      <button className="linkbtn" onClick={props.onClear}>
+        Clear
+      </button>
+    </div>
+  );
+}
+
+function ConfirmModal(props: {
+  paths: string[];
+  bytes: number;
+  busy: boolean;
+  report: TrashReport | null;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="overlay" onClick={props.busy ? undefined : props.onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        {props.report === null ? (
+          <>
+            <h2>Move to trash?</h2>
+            <p className="muted">
+              {props.paths.length} files ({fmtBytes(props.bytes)}) will be
+              moved to the recycle bin — recoverable, never permanently
+              deleted.
+            </p>
+            <div className="modallist">
+              {props.paths.map((p) => (
+                <div key={p} className="modpath" title={p}>
+                  {p}
+                </div>
+              ))}
+            </div>
+            <div className="modalbtns">
+              <button className="btn" onClick={props.onClose} disabled={props.busy}>
+                Cancel
+              </button>
+              <button className="btn danger" onClick={props.onConfirm} disabled={props.busy}>
+                {props.busy ? "Moving…" : `Move ${props.paths.length} to trash`}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2>
+              {props.report.failed === 0 ? "Done" : "Finished with errors"}
+            </h2>
+            <p className="muted">
+              {props.report.trashed} moved, {props.report.failed} failed.
+            </p>
+            <div className="modallist">
+              {props.report.results.map((r) => (
+                <div
+                  key={r.path}
+                  className={r.ok ? "modok" : "moderr"}
+                  title={r.ok ? r.path : `${r.path} — ${r.error}`}
+                >
+                  {r.ok ? "✓ " : "✗ "}
+                  {r.path}
+                </div>
+              ))}
+            </div>
+            <div className="modalbtns">
+              <button className="btn primary" onClick={props.onClose}>
+                Close
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MyClutter() {
   const { roots, path, setPath } = useRoots((r) => r.home || r.roots[0] || "");
   const [scan, setScan] = useState<ScanNode | null>(null);
   const [dups, setDups] = useState<DupReport | null>(null);
-  const [busy, setBusy] = useState<"scan" | "dups" | null>(null);
+  const [busy, setBusy] = useState<"scan" | "dups" | "trash" | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirming, setConfirming] = useState(false);
+  const [report, setReport] = useState<TrashReport | null>(null);
   const [error, setError] = useState("");
 
   async function runScan() {
@@ -708,6 +832,69 @@ function MyClutter() {
     }
   }
 
+  function toggle(path: string) {
+    setSelected((s) => {
+      const c = new Set(s);
+      if (c.has(path)) c.delete(path);
+      else c.add(path);
+      return c;
+    });
+  }
+
+  function sizeOf(path: string): number {
+    for (const f of scan?.largest ?? []) if (f.path === path) return f.size;
+    for (const f of scan?.oldest ?? []) if (f.path === path) return f.size;
+    for (const g of dups?.groups ?? []) {
+      if (g.files.includes(path)) return g.size;
+    }
+    return 0;
+  }
+
+  const selPaths = [...selected];
+  const selBytes = selPaths.reduce((s, p) => s + sizeOf(p), 0);
+
+  async function doTrash() {
+    if (selPaths.length === 0 || busy) return;
+    setBusy("trash");
+    try {
+      const rep = await invoke<TrashReport>("trash_delete", { paths: selPaths });
+      setReport(rep);
+      const gone = new Set(rep.results.filter((r) => r.ok).map((r) => r.path));
+      if (gone.size > 0) {
+        setScan((s) =>
+          s === null
+            ? s
+            : {
+                ...s,
+                largest: s.largest.filter((f) => !gone.has(f.path)),
+                oldest: s.oldest.filter((f) => !gone.has(f.path)),
+              }
+        );
+        setDups((d) =>
+          d === null
+            ? d
+            : {
+                ...d,
+                groups: d.groups
+                  .map((g) => ({ ...g, files: g.files.filter((f) => !gone.has(f)) }))
+                  .filter((g) => g.files.length > 1),
+              }
+        );
+      }
+    } catch (e) {
+      setError(errText(e));
+      setConfirming(false);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function closeModal() {
+    setConfirming(false);
+    setReport(null);
+    setSelected(new Set());
+  }
+
   const waste =
     dups?.groups.reduce((s, g) => s + g.size * (g.files.length - 1), 0) ?? 0;
 
@@ -718,7 +905,7 @@ function MyClutter() {
           <h1>My Clutter</h1>
           <p>Large files, old files, and true duplicates by content hash.</p>
         </div>
-        <span className="vtag">v0.2</span>
+        <span className="vtag">v0.3</span>
       </div>
       <div className="card hero">
         <div className="scanrow">
@@ -759,11 +946,11 @@ function MyClutter() {
         <div className="cols">
           <div className="card">
             <h2>Largest files</h2>
-            <FileTable files={scan.largest} showDate={false} />
+            <FileTable files={scan.largest} showDate={false} selected={selected} onToggle={toggle} />
           </div>
           <div className="card">
             <h2>Oldest files</h2>
-            <FileTable files={scan.oldest} showDate={true} />
+            <FileTable files={scan.oldest} showDate={true} selected={selected} onToggle={toggle} />
           </div>
         </div>
       )}
@@ -785,17 +972,42 @@ function MyClutter() {
                 <span className="muted">({g.hash.slice(0, 12)}…)</span>
               </div>
               {g.files.map((f) => (
-                <div key={f} className="dupfile" title={f}>
-                  {f}
-                </div>
+                <label key={f} className="dupfile" title={f}>
+                  <input
+                    type="checkbox"
+                    className="check"
+                    checked={selected.has(f)}
+                    onChange={() => toggle(f)}
+                  />
+                  <span className="dupname">{f}</span>
+                </label>
               ))}
             </div>
           ))}
           <div className="card note" style={{ marginTop: 14, marginBottom: 0 }}>
-            Read-only in v0.2 — select-and-delete with trash-first safety
-            lands in v0.3.
+            Tick files anywhere on this page, review the list, and move them
+            to the recycle bin — recoverable, never a silent delete.
           </div>
         </div>
+      )}
+      <ReviewBar
+        count={selPaths.length}
+        bytes={selBytes}
+        onReview={() => {
+          setReport(null);
+          setConfirming(true);
+        }}
+        onClear={() => setSelected(new Set())}
+      />
+      {confirming && (
+        <ConfirmModal
+          paths={selPaths}
+          bytes={selBytes}
+          busy={busy === "trash"}
+          report={report}
+          onConfirm={() => void doTrash()}
+          onClose={closeModal}
+        />
       )}
     </div>
   );
@@ -813,12 +1025,11 @@ function About() {
       <div className="card about">
         <img src="/icon.png" alt="OS Cleaner" className="aboutlogo" />
         <h2>OS Cleaner</h2>
-        <p className="muted">by Don Pely · v0.2.0 · MIT License</p>
+        <p className="muted">by Don Pely · v0.3.0 · MIT License</p>
         <p>
-          A cross-platform system cleaner and disk analyzer. v0.2 scans
-          folders, maps them as a treemap, and finds large, old, and
-          duplicate files — hardlink-aware, trash-first, nothing deleted
-          without you.
+          A cross-platform system cleaner and disk analyzer. v0.3 scans
+          folders, maps them as a treemap, finds clutter — and deletes
+          to the recycle bin with preview-first approval, never silently.
         </p>
         <button
           className="btn"

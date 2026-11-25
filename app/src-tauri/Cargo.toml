@@ -1,6 +1,6 @@
 [package]
 name = "os-cleaner"
-version = "0.2.0"
+version = "0.3.0"
 description = "OS Cleaner by Don Pely — cross-platform system cleaner and disk analyzer"
 authors = ["Don Pely"]
 edition = "2024"

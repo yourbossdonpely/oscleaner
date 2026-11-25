@@ -726,6 +726,143 @@ span.twisty {
   padding: 1px 0;
 }
 
+label.dupfile {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+  overflow: visible;
+}
+
+.dupname {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checkcol {
+  width: 34px;
+}
+
+.check {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  vertical-align: middle;
+  flex: none;
+}
+
+tr.picked td {
+  background: rgba(var(--accent-rgb), 0.06);
+}
+
+.reviewbar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #fff;
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+  border-radius: 999px;
+  padding: 10px 12px 10px 22px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.linkbtn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 12px;
+}
+
+.linkbtn:hover {
+  color: var(--ink);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(20, 20, 50, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.modal {
+  width: min(640px, 94%);
+  max-height: 82%;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 20px;
+  padding: 28px;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.3);
+}
+
+.modal h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
+.modallist {
+  margin: 14px 0;
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: #fbfaff;
+}
+
+.modpath,
+.modok,
+.moderr {
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 0;
+}
+
+.modok {
+  color: #15803d;
+}
+
+.moderr {
+  color: #b42318;
+}
+
+.modalbtns {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.btn.danger {
+  color: #fff;
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  border: none;
+  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);
+}
+
+.btn.danger:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
 /* ---------- about ---------- */
 .about {
   max-width: 560px;
