@@ -76,10 +76,10 @@ Key insight: Explorer double-counts WinSxS↔System32 hardlinks, so the
 
 ## 3. AppX debloat
 
-- Researched Chris Titus Tech's WinUtil from its GitHub raw files:
-  its blanket "remove all Store apps" list is legacy and explicitly
-  NOT RECOMMENDED by its authors; current WinUtil does targeted
-  removals (Widgets/Edge/OneDrive/Copilot) + per-app UI.
+- Researched a popular open-source Windows utility's approach from its
+  public docs: blanket "remove all Store apps" lists are legacy and
+  explicitly NOT RECOMMENDED by their authors; current practice is
+  targeted removals (Widgets/Edge/OneDrive/Copilot) + per-app UI.
 - Inventoried user AppX with sizes. Removed 7 (Clipchamp, Weather,
   News, Alarms, Sound Recorder, To Do, Dev Home), provisioned copies
   absent. Kept: PC Manager, Phone Link (+CrossDevice), Widgets,
@@ -116,7 +116,7 @@ Key insight: Explorer double-counts WinSxS↔System32 hardlinks, so the
 - Flagged: KMSpico activator (25MB, piracy + malware risk; removal
   needs a legit-license decision by owner).
 - Noted for later: `Program Files (x86)` is 27GB (unscanned);
-  user already owns TreeSize Free, WinDirStat, and WizTree
+  the owner already relies on disk-analyzer tools daily
   (validates the app's feature direction).
 
 ## 6. Pending items (for a later session)

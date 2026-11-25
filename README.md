@@ -3,9 +3,9 @@
 > **Desktop name:** OS Cleaner. **In-app / installer name:** OS Cleaner by Don Pely.
 
 A cross-platform, open-source (MIT) system cleaner and disk analyzer for
-Windows, macOS, and Linux. Think WinDirStat/TreeSize insight plus
-CleanMyMac-style one-click care, with a safety model proven in real
-cleanups (see [bloat.md](./bloat.md) for the full session log this grew out of).
+Windows, macOS, and Linux. Deep disk insight plus one-click care, with
+a safety model proven in real cleanups (see [bloat.md](./bloat.md) for
+the full session log this grew out of).
 
 **Framework:** Tauri 2 — Rust backend + React UI.
 **License:** MIT. **Releases:** GitHub releases + tags + About page.
@@ -21,32 +21,28 @@ first or explicitly approved.
 
 ## 2. Feature brainstorm (from real tools + our cleanup sessions)
 
-### 2.1 Disk insight (TreeSize Free / WinDirStat / WizTree)
+### 2.1 Disk insight
 
-Reimplement these behaviors (original code, not copied — see §6):
+Core file-system intelligence, built original (see §6):
 
 - Explorer-like folder tree sorted by real size, expandable, with
-  size / allocated-on-disk / file count / % of parent modes (TreeSize).
+  size / allocated-on-disk / file count / % of parent modes.
 - Treemap: one rectangle per file, area = size, color = file type,
-  click-to-zoom (WinDirStat). Plus folder-level treemap (TreeSize).
-- Extension statistics: total per file type (WinDirStat).
-- Charts: bar/pie history views (TreeSize).
+  click-to-zoom, at file level and folder level.
+- Extension statistics: total per file type.
+- Charts: bar/pie history views.
 - Filters: by extension, size, age; top-N largest files list.
 - Fast scanning: parallel directory walk everywhere; on Windows,
-  WizTree-style NTFS MFT reading for near-instant full-drive scans.
+  Direct NTFS filesystem-table reads for near-instant full-drive scans.
 - Correct hardlink accounting: never double-count WinSxS-style
   hardlinked bytes (the #1 lesson from our 60GB investigation).
-- Reports: export scan to PDF/HTML/CSV (TreeSize does PDF).
+- Reports: export scan to PDF/HTML/CSV.
 - In-app actions on any node: open in file manager, delete to trash
   (never silent permanent delete), exclude from future scans.
 
-### 2.2 One-click care (CleanMyMac direction)
+### 2.2 One-click care
 
-CleanMyMac (MacPaw, proprietary — inspire, don't copy assets) rebuilt
-around 2024 into: Smart Care (one-click cleanup + protection +
-performance), My Clutter (large/old files, duplicates), Cleanup
-(system junk), plus assistant guidance and 25+ tools across 6 modules.
-Our equivalents:
+One-click maintenance, organized into focused modules:
 
 - **Smart Care:** one button → scan everything below → single approve
   screen grouped by safety (Safe / Review / Never-touch) → run.
@@ -57,7 +53,7 @@ Our equivalents:
 - **Assistant:** plain-language guidance ("your driver store has 2
   old GPU drivers, 5GB — remove?"), teach-as-it-cleans.
 - **Menu-bar / tray monitor:** live disk + health + "2GB reclaimable"
-  nudges (CleanMyMac menu app equivalent).
+  nudges from the tray.
 - **Updater-style flow:** rescan → approve → run → before/after report,
   exactly like the sessions in [bloat.md](./bloat.md).
 
@@ -81,31 +77,30 @@ slimming (later), brew cleanup, login items audit.
 Linux v1 ideas: journalctl vacuum, apt/dnf/pacman caches, old kernels,
 flatpak/snap pruning, trash + thumbnail caches.
 
-### 2.4 UI direction — "CleanMyMac-class"
+### 2.4 UI direction
 
 - Sidebar module layout (6-ish modules), big friendly scan button,
   animated progress, tile/card results with plain-language labels.
-- Smart Care hero is a 3D glass dial (CleanMyMac-X-class meter, original
-  artwork): interactive concept + visual spec at
+- Smart Care hero is a 3D glass dial (original artwork): interactive concept + visual spec at
   [design/meter.html](./design/meter.html) — click the dial through
   idle → scanning → results → cleaning → done.
 - Light + dark mode, OS-native window chrome via Tauri.
 - Treemap as a hero visualization on the disk screen; the Disk view
-  leads with a TreeSize-style table (Name, Size, Allocated, Files,
+  leads with a sortable details table (Name, Size, Allocated, Files,
   Folders, % of parent, Last Modified, Owner + toolbar: Select
   Directory, Refresh, Filter, Expand, Export) with treemap and
-  Space-Lens-style bubble views as switchable tabs.
-- CleanMyMac-class look: light, colorful, mature — every module owns
+  bubble-map views as switchable tabs.
+- Premium consumer look: light, colorful, mature — every module owns
   a color (Cleanup green, Protection pink, Performance orange,
   Applications blue, My Clutter teal, Disk Insight violet).
 - Reference screens live in the repo root (`UIHOMESCREEN.png`,
   `UI.png`, `UI2.avif`, `UI3.jpg`, `cleanDONE.jpg`,
-  `CleanMyMac-5-icon.png`, `LOGO3.jpg`): study direction only —
-  never ship vendor pixels (see §6).
+  `ref-logo-3d-desktop.png`, `LOGO3.jpg`): study direction only —
+  never ship third-party pixels (see §6).
 - Every destructive action: preview list → approve → undo info.
 - Tech suggestion: React + TypeScript + Tailwind + a polished
   component set (shadcn-style); charts via a treemap-capable lib;
-  framer-motion-class micro-animation (tasteful, CleanMyMac-like).
+  framer-motion-class micro-animation (tasteful, friendly).
 
 ### 2.5 Brand + packaging
 
@@ -159,20 +154,20 @@ Duplicate skill ids exist, so load by full path:
 
 0. (done) Branding + UX concepts: owner logo with gold seal
    (`brand/`), Smart Care dial concept (`design/meter.html`),
-   reference screens, TreeSize study.
+   reference screens, disk-table study.
 1. Scaffold Tauri 2 + React + TS + Tailwind; CI builds all OSes.
 2. Rust parallel scanner + treemap UI + hardlink-correct sizes.
 3. Windows Safe module set (§2.3) with backup-first + approve flow.
-4. CleanMyMac-class visual pass + logo/icon + dark mode.
+4. Premium visual pass + logo/icon + dark mode.
 5. Beta: dogfood on real machines (this PC first), MIT release v0.1.
 6. macOS modules, then Linux modules; auto-update; stores.
 
 ## 6. Legal notes (do not skip)
 
-- WinDirStat is GPL-2.0: study behavior, do NOT copy its code into
-  this MIT app (license conflict).
-- TreeSize, CleanMyMac, WizTree are proprietary: take inspiration
-  from features/UX only; all code, text, icons, images original.
+- Study behaviors, write original code: do NOT copy third-party code
+  into this MIT app (copyleft and proprietary licenses conflict).
+- Take inspiration from features/UX only; all code, text, icons,
+  images in this repo are original unless noted.
 - Never bundle vendor SDKs beyond their license terms.
 
 ## 7. Open questions
