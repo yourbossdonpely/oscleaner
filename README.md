@@ -2,7 +2,7 @@
 
 <img src="brand/os-cleaner-icon-512.png" alt="OS Cleaner app icon" width="112" />
 
-# OS Cleaner by Don Pely
+# OS Cleaner by Don PELY
 
 **Deep disk insight plus one-click care, on Windows, macOS and Linux.**
 
@@ -21,7 +21,7 @@ genuinely waste. Every risky action is backed up first or explicitly approved �
 no scare tactics, no deletions without evidence. The safety model comes from
 real cleanups: [bloat.md](./bloat.md) is the full session log this app grew out of.
 
-> **Desktop name:** OS Cleaner. **In-app / installer name:** OS Cleaner by Don Pely.
+> **Desktop name:** OS Cleaner. **In-app / installer name:** OS Cleaner by Don PELY.
 
 ## Download
 
@@ -169,7 +169,7 @@ flatpak/snap pruning, trash + thumbnail caches.
 
 ### 2.5 Brand + packaging
 
-- Original logo + app icon: designed by Don Pely — a glossy 3D pink
+- Original logo + app icon: designed by Don PELY — a glossy 3D pink
   screen swept by a golden broom on a gold stand, with "Don PELY"
   embossed in gold — see [brand/preview.html](./brand/preview.html).
   `brand/` holds the untouched original plus transparent 1024 + 512
@@ -239,7 +239,7 @@ Duplicate skill ids exist, so load by full path:
 
 ## 7. Open questions
 
-1. Credit spelling — resolved: "Don Pely".
+1. Credit spelling — resolved: "Don PELY".
 2. Logo direction — resolved: owner's golden-broom mark, see [brand/](./brand/preview.html).
 3. macOS signing/notarization + Windows code signing certs?
 4. Target Rust/MSRV + Node versions at scaffold time.
