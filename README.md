@@ -27,9 +27,9 @@ real cleanups: [bloat.md](./bloat.md) is the full session log this app grew out 
 
 | Platform | File |
 |----------|------|
-| Windows | [`Setup exe`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.5.0/OS.Cleaner_0.5.0_x64-setup.exe) (NSIS installer) · [`MSI`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.5.0/OS.Cleaner_0.5.0_x64_en-US.msi) |
-| macOS (Intel + Apple Silicon) | [`DMG`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.5.0/OS.Cleaner_0.5.0_universal.dmg) (universal, ad-hoc signed) |
-| Linux | [`AppImage`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.5.0/OS.Cleaner_0.5.0_amd64.AppImage) · [`DEB`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.5.0/OS.Cleaner_0.5.0_amd64.deb) · [`RPM`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.5.0/OS.Cleaner-0.5.0-1.x86_64.rpm) |
+| Windows | [`Setup exe`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.6.0/OS.Cleaner_0.6.0_x64-setup.exe) (NSIS installer) · [`MSI`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.6.0/OS.Cleaner_0.6.0_x64_en-US.msi) |
+| macOS (Intel + Apple Silicon) | [`DMG`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.6.0/OS.Cleaner_0.6.0_universal.dmg) (universal, ad-hoc signed) |
+| Linux | [`AppImage`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.6.0/OS.Cleaner_0.6.0_amd64.AppImage) · [`DEB`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.6.0/OS.Cleaner_0.6.0_amd64.deb) · [`RPM`](https://github.com/yourbossdonpely/oscleaner/releases/download/v0.6.0/OS.Cleaner-0.6.0-1.x86_64.rpm) |
 
 All releases live on the [releases page](https://github.com/yourbossdonpely/oscleaner/releases).
 
@@ -48,6 +48,8 @@ All releases live on the [releases page](https://github.com/yourbossdonpely/oscl
 ![Stale drivers screen](docs/screenshots/v0.5-drivers.png)
 ![AppX cleanup screen](docs/screenshots/v0.5-appx.png)
 ![Component store screen](docs/screenshots/v0.5-component.png)
+![Monitors screen](docs/screenshots/v0.6-monitors.png)
+![Smart Fix screen](docs/screenshots/v0.6-smartfix.png)
 
 ## Features
 
@@ -67,9 +69,11 @@ All releases live on the [releases page](https://github.com/yourbossdonpely/oscl
 | Dark mode | ✅ v0.4 | Persisted toggle, per-page accents kept |
 | Stale drivers | ✅ v0.5 | Superseded report; removal with guard in v0.6 |
 | Component store | ✅ v0.5 | DISM StartComponentCleanup, no ResetBase |
+| Smart Fix one-click | ✅ v0.6 | Temp trash + orphan backup behind one approval |
+| System monitors + tray | ✅ v0.6 | Live CPU/RAM/disk, tray show/hide/quit |
 | AppX cleanup | ✅ v0.5 | Per-app remove, system packages locked |
 | Container bases | ⬜ planned | Orphaned images via supported removal |
-| Tray monitor + auto-update | ⬜ planned | Health nudges, signed updates |
+| Health nudges + auto-update | ⬜ planned | Reclaimable alerts, signed updates |
 
 ---
 
@@ -221,8 +225,9 @@ Duplicate skill ids exist, so load by full path:
 3. (done in v0.3.0) Trash-first delete with preview → approve → recycle bin.
 4. (done in v0.4.0) First Safe modules: installer orphans + remnant sweep; dark mode.
 5. (done in v0.5.0) Stale drivers report + AppX cleanup + Component store.
-6. (next, v0.6) Driver removal with active-driver guard; tray monitor.
-7. Beta: dogfood on real machines; auto-update; stores.
+6. (done in v0.6.0) Smart Fix one-click + system monitors/tray.
+7. (next, v0.7) Driver removal with active-driver guard; auto-update.
+8. Beta: dogfood on real machines; stores.
 
 ## 6. Legal notes (do not skip)
 

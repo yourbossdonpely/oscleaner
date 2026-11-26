@@ -1398,10 +1398,100 @@ fn run_component_cleanup() -> Result<TrashReport, String> {
     }
 }
 
+// ---- System monitors ----
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DiskStat {
+    mount: String,
+    total: u64,
+    free: u64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SysStats {
+    cpu: f32,
+    mem_used: u64,
+    mem_total: u64,
+    disks: Vec<DiskStat>,
+}
+
+#[tauri::command]
+fn system_stats() -> Result<SysStats, String> {
+    let mut sys =
+        sysinfo::System::new().map_err(|e| format!("stats unavailable: {e}"))?;
+    // CPU usage needs two samples to form a delta.
+    sys.refresh_cpu_all();
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    sys.refresh_cpu_all();
+    sys.refresh_memory();
+    let disks = sysinfo::Disks::new_with_refreshed_list()
+        .map_err(|e| format!("disk list unavailable: {e}"))?;
+    Ok(SysStats {
+        cpu: sys.global_cpu_usage(),
+        mem_used: sys.used_memory(),
+        mem_total: sys.total_memory(),
+        disks: disks
+            .iter()
+            .take(16)
+            .map(|d| DiskStat {
+                mount: d.mount_point().to_string_lossy().into_owned(),
+                total: d.total_space(),
+                free: d.available_space(),
+            })
+            .collect(),
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            use tauri::menu::{Menu, MenuItem};
+            use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+            use tauri::Manager;
+            let show = MenuItem::with_id(app, "show", "Show OS Cleaner", true, None::<&str>)?;
+            let hide = MenuItem::with_id(app, "hide", "Hide", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show, &hide, &quit])?;
+            TrayIconBuilder::with_id("main")
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .tooltip("OS Cleaner")
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show" => {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.show();
+                            let _ = w.set_focus();
+                        }
+                    }
+                    "hide" => {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.hide();
+                        }
+                    }
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.show();
+                            let _ = w.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             scan_dir,
             list_roots,
@@ -1417,7 +1507,8 @@ pub fn run() {
             scan_drivers,
             scan_appx,
             remove_appx,
-            run_component_cleanup
+            run_component_cleanup,
+            system_stats
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -1689,5 +1780,14 @@ mod tests {
         assert_eq!(rep.empty_dirs[0].name, "empty1");
         assert_eq!(rep.stale_files.len(), 2);
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn system_stats_are_sane() {
+        let s = system_stats().unwrap();
+        assert!(s.mem_total > 0);
+        assert!(s.mem_total >= s.mem_used);
+        assert!(!s.disks.is_empty());
+        assert!(s.cpu >= 0.0);
     }
 }

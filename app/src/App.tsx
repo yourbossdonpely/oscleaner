@@ -108,7 +108,7 @@ interface AppxReport {
   totalBytes: number;
 }
 
-type View = "care" | "disk" | "clutter" | "orphans" | "sweep" | "drivers" | "appx" | "component" | "about";
+type View = "care" | "disk" | "clutter" | "monitors" | "orphans" | "sweep" | "drivers" | "appx" | "component" | "about";
 
 function fmtBytes(n: number): string {
   if (!Number.isFinite(n) || n < 0) return "—";
@@ -149,6 +149,7 @@ const THEMES: Record<View, string> = {
   care: "theme-care",
   disk: "theme-disk",
   clutter: "theme-clutter",
+  monitors: "theme-monitors",
   orphans: "theme-orphans",
   sweep: "theme-sweep",
   drivers: "theme-drivers",
@@ -216,6 +217,7 @@ export default function App() {
           <div className="cap">INSIGHT</div>
           <NavBtn id="disk" view={view} setView={setView} label="Disk Insight" icon="▦" />
           <NavBtn id="clutter" view={view} setView={setView} label="My Clutter" icon="⧉" />
+          <NavBtn id="monitors" view={view} setView={setView} label="Monitors" icon="◉" />
           <div className="cap">MODULES</div>
           <NavBtn id="orphans" view={view} setView={setView} label="Installer Orphans" icon="▤" />
           <NavBtn id="sweep" view={view} setView={setView} label="Remnant Sweep" icon="❖" />
@@ -229,7 +231,7 @@ export default function App() {
           <NavBtn id="about" view={view} setView={setView} label="About" icon="ⓘ" />
         </nav>
         <div className="sidefoot">
-          <span>v0.5.0 · system modules</span>
+          <span>v0.6.0 · one-click fix</span>
           <button className="themebtn" onClick={toggleDark} title="Toggle dark mode">
             {dark ? "☀" : "◐"}
           </button>
@@ -239,6 +241,7 @@ export default function App() {
         {view === "care" && <SmartCare />}
         {view === "disk" && <DiskInsight />}
         {view === "clutter" && <MyClutter />}
+        {view === "monitors" && <MonitorsScreen />}
         {view === "orphans" && <OrphansScreen />}
         {view === "sweep" && <SweepScreen />}
         {view === "drivers" && <DriversScreen />}
@@ -314,6 +317,271 @@ function Stat(props: { label: string; value: string }) {
   );
 }
 
+interface DiskStat {
+  mount: string;
+  total: number;
+  free: number;
+}
+
+interface SysStats {
+  cpu: number;
+  memUsed: number;
+  memTotal: number;
+  disks: DiskStat[];
+}
+
+function MonitorsScreen() {
+  const [stats, setStats] = useState<SysStats | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    async function poll() {
+      try {
+        const s = await invoke<SysStats>("system_stats");
+        if (alive) {
+          setStats(s);
+          setError("");
+        }
+      } catch (e) {
+        if (alive) setError(errText(e));
+      }
+    }
+    void poll();
+    const t = setInterval(() => void poll(), 2000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, []);
+
+  const memPct =
+    stats && stats.memTotal > 0 ? (stats.memUsed / stats.memTotal) * 100 : 0;
+
+  return (
+    <div>
+      <div className="topbar">
+        <div>
+          <h1>Monitors</h1>
+          <p>Live CPU, memory, and disk — refreshed every 2 seconds.</p>
+        </div>
+        <span className="vtag">v0.6</span>
+      </div>
+      {error !== "" && <div className="err">{error}</div>}
+      <div className="cols">
+        <div className="card">
+          <h2>CPU</h2>
+          <div className="bigpct">{stats ? `${stats.cpu.toFixed(1)}%` : "—"}</div>
+          <span className="topbar-track">
+            <i style={{ width: `${Math.min(100, Math.max(0, stats?.cpu ?? 0))}%` }} />
+          </span>
+        </div>
+        <div className="card">
+          <h2>Memory</h2>
+          <div className="bigpct">
+            {stats ? fmtBytes(stats.memUsed) : "—"}
+            <span className="muted"> of {stats ? fmtBytes(stats.memTotal) : "—"}</span>
+          </div>
+          <span className="topbar-track">
+            <i style={{ width: `${memPct}%` }} />
+          </span>
+        </div>
+      </div>
+      <div className="card">
+        <h2>Disks</h2>
+        {!stats && <p className="muted">Reading…</p>}
+        {stats?.disks.map((d) => {
+          const used = d.total > d.free ? d.total - d.free : 0;
+          const pct = d.total > 0 ? (used / d.total) * 100 : 0;
+          return (
+            <div key={d.mount} className="toprow">
+              <span className="topname" title={d.mount}>
+                {d.mount}
+              </span>
+              <span className="topbar-track">
+                <i style={{ width: `${Math.max(2, pct)}%` }} />
+              </span>
+              <span className="topsize">{fmtBytes(d.free)} free</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="card note">
+        A tray icon lives in your system tray: click it to bring OS Cleaner
+        back, right-click for Show, Hide, and Quit.
+      </div>
+    </div>
+  );
+}
+
+function SmartFixSection({ temp }: { temp: string }) {
+  const [remnants, setRemnants] = useState<RemnantReport | null>(null);
+  const [orphans, setOrphans] = useState<OrphanReport | null>(null);
+  const [groups, setGroups] = useState({ remnants: true, orphans: true });
+  const [confirming, setConfirming] = useState(false);
+  const [rep, setRep] = useState<TrashReport | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [error, setError] = useState("");
+  const elevated = useElevated();
+
+  async function findFixes() {
+    if (scanning || !temp) return;
+    setScanning(true);
+    setError("");
+    try {
+      const r = await invoke<RemnantReport>("scan_remnants", {
+        options: { root: temp, minAgeDays: 7 },
+      });
+      setRemnants(r);
+      try {
+        setOrphans(await invoke<OrphanReport>("scan_installer_orphans"));
+      } catch {
+        setOrphans(null);
+      }
+    } catch (e) {
+      setError(errText(e));
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  const remPaths = remnants
+    ? [...remnants.emptyDirs, ...remnants.staleFiles].map((e) => e.path)
+    : [];
+  const orphPaths = (orphans?.orphans ?? []).map((o) => o.path);
+  const remBytes = (remnants ? [...remnants.emptyDirs, ...remnants.staleFiles] : []).reduce(
+    (s, e) => s + e.size,
+    0
+  );
+  const useRem = groups.remnants && remPaths.length > 0;
+  const useOrph = groups.orphans && orphPaths.length > 0 && elevated === true;
+  const fixBytes = (useRem ? remBytes : 0) + (useOrph ? orphans?.totalBytes ?? 0 : 0);
+  const fixPaths = [...(useRem ? remPaths : []), ...(useOrph ? orphPaths : [])];
+
+  async function doFix() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const results: TrashItem[] = [];
+      let trashed = 0;
+      let failed = 0;
+      if (useRem) {
+        const r = await invoke<TrashReport>("trash_delete", { paths: remPaths });
+        results.push(...r.results);
+        trashed += r.trashed;
+        failed += r.failed;
+      }
+      if (useOrph) {
+        const r = await invoke<TrashReport>("backup_orphans", { paths: orphPaths });
+        results.push(...r.results);
+        trashed += r.trashed;
+        failed += r.failed;
+      }
+      setRep({ results, trashed, failed });
+      const r = await invoke<RemnantReport>("scan_remnants", {
+        options: { root: temp, minAgeDays: 7 },
+      });
+      setRemnants(r);
+      try {
+        setOrphans(await invoke<OrphanReport>("scan_installer_orphans"));
+      } catch {
+        /* keep stale list on error */
+      }
+    } catch (e) {
+      setError(errText(e));
+      setConfirming(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function closeModal() {
+    setConfirming(false);
+    setRep(null);
+  }
+
+  return (
+    <div className="card">
+      <h2>Smart Fix — one click</h2>
+      <p className="muted" style={{ marginTop: 0 }}>
+        Week-old temp leftovers go to the trash; installer orphans move to
+        backup first. You approve everything before anything moves.
+      </p>
+      {!remnants && !orphans && (
+        <button
+          className="btn primary"
+          onClick={() => void findFixes()}
+          disabled={scanning || !temp}
+        >
+          {scanning ? "Finding fixes…" : "Find fixes"}
+        </button>
+      )}
+      {error !== "" && <div className="err">{error}</div>}
+      {(remnants || orphans) && (
+        <>
+          <label className="fixgroup">
+            <input
+              type="checkbox"
+              className="check"
+              checked={groups.remnants}
+              onChange={() => setGroups((g) => ({ ...g, remnants: !g.remnants }))}
+            />
+            <span>
+              <b>{remPaths.length} temp leftovers ({fmtBytes(remBytes)})</b>
+              <span className="muted"> — empty folders and week-old temps → trash</span>
+            </span>
+          </label>
+          {orphans && (
+            <label className="fixgroup">
+              <input
+                type="checkbox"
+                className="check"
+                checked={groups.orphans && elevated === true}
+                disabled={elevated !== true}
+                onChange={() => setGroups((g) => ({ ...g, orphans: !g.orphans }))}
+              />
+              <span>
+                <b>
+                  {orphPaths.length} installer orphans ({fmtBytes(orphans.totalBytes)})
+                </b>
+                <span className="muted">
+                  {elevated === true
+                    ? " — move to backup first"
+                    : " — needs administrator (see Installer Orphans)"}
+                </span>
+              </span>
+            </label>
+          )}
+          <div className="btnrow">
+            <button
+              className="btn primary"
+              disabled={(!useRem && !useOrph) || busy}
+              onClick={() => {
+                setRep(null);
+                setConfirming(true);
+              }}
+            >
+              Fix all
+            </button>
+          </div>
+        </>
+      )}
+      {confirming && (
+        <ConfirmModal
+          paths={fixPaths}
+          bytes={fixBytes}
+          busy={busy}
+          report={rep}
+          action="fix"
+          onConfirm={() => void doFix()}
+          onClose={closeModal}
+        />
+      )}
+    </div>
+  );
+}
+
 function SmartCare() {
   const { roots, path, setPath } = useRoots((r) => r.home || r.roots[0] || "");
   const [scan, setScan] = useState<ScanNode | null>(null);
@@ -348,7 +616,7 @@ function SmartCare() {
           <h1>Smart Care</h1>
           <p>One scan for everything — junk, clutter, and space hogs.</p>
         </div>
-        <span className="vtag">v0.5</span>
+        <span className="vtag">v0.6</span>
       </div>
       <div className="card hero">
         <div className="scanrow">
@@ -406,11 +674,11 @@ function SmartCare() {
             ))}
           </div>
           <div className="card note">
-            v0.2 scans and shows. Automatic cleanup with backup-first safety
-            lands in v0.3 — <b>nothing here deletes anything.</b>
+            Scan results are read-only. For one-click cleanup, use Smart Fix below.
           </div>
         </>
       )}
+      <SmartFixSection temp={roots.temp} />
     </div>
   );
 }
@@ -496,7 +764,7 @@ function DiskInsight() {
           <h1>Disk Insight</h1>
           <p>Browse folders by real size — table or treemap.</p>
         </div>
-        <span className="vtag">v0.5</span>
+        <span className="vtag">v0.6</span>
       </div>
       <div className="card hero">
         <div className="scanrow">
@@ -844,6 +1112,11 @@ const ACTION_COPY = {
     blurb: "They will be uninstalled for your user account. System and framework packages can never be selected.",
     confirm: (n: number) => `Remove ${n}`,
   },
+  fix: {
+    title: "Apply Smart Fix?",
+    blurb: "Temp leftovers go to the trash; installer orphans move to backup first. Everything stays recoverable.",
+    confirm: (n: number) => `Fix ${n}`,
+  },
   cleanup: {
     title: "Run component cleanup?",
     blurb:
@@ -857,7 +1130,7 @@ function ConfirmModal(props: {
   bytes: number;
   busy: boolean;
   report: TrashReport | null;
-  action: "trash" | "backup" | "restore" | "remove" | "cleanup";
+  action: "trash" | "backup" | "restore" | "remove" | "cleanup" | "fix";
   onConfirm: () => void;
   onClose: () => void;
 }) {
@@ -1053,7 +1326,7 @@ function MyClutter() {
           <h1>My Clutter</h1>
           <p>Large files, old files, and true duplicates by content hash.</p>
         </div>
-        <span className="vtag">v0.5</span>
+        <span className="vtag">v0.6</span>
       </div>
       <div className="card hero">
         <div className="scanrow">
@@ -1301,7 +1574,7 @@ function OrphansScreen() {
           <h1>Installer Orphans</h1>
           <p>Cached installers nothing references — move to backup first.</p>
         </div>
-        <span className="vtag">v0.5</span>
+        <span className="vtag">v0.6</span>
       </div>
       {unsupported ? (
         <div className="card note">
@@ -1567,7 +1840,7 @@ function SweepScreen() {
           <h1>Remnant Sweep</h1>
           <p>Empty folders and stale temp files — preview, then trash.</p>
         </div>
-        <span className="vtag">v0.5</span>
+        <span className="vtag">v0.6</span>
       </div>
       <div className="card hero">
         <div className="scanrow">
@@ -1672,7 +1945,7 @@ function DriversScreen() {
           <h1>Stale Drivers</h1>
           <p>Third-party driver packages by size — oldest per device flagged.</p>
         </div>
-        <span className="vtag">v0.5</span>
+        <span className="vtag">v0.6</span>
       </div>
       {unsupported ? (
         <div className="card note">
@@ -1821,7 +2094,7 @@ function AppxScreen() {
           <h1>AppX Cleanup</h1>
           <p>Store apps by size — system packages can never be selected.</p>
         </div>
-        <span className="vtag">v0.5</span>
+        <span className="vtag">v0.6</span>
       </div>
       {unsupported ? (
         <div className="card note">
@@ -1976,7 +2249,7 @@ function ComponentScreen() {
           <h1>Component Store</h1>
           <p>Windows&apos; own cleanup, run safely — no ResetBase, no Analyze.</p>
         </div>
-        <span className="vtag">v0.5</span>
+        <span className="vtag">v0.6</span>
       </div>
       {unsupported ? (
         <div className="card note">
@@ -2039,11 +2312,11 @@ function About() {
       <div className="card about">
         <img src="/icon.png" alt="OS Cleaner" className="aboutlogo" />
         <h2>OS Cleaner</h2>
-        <p className="muted">by Don Pely · v0.5.0 · MIT License</p>
+        <p className="muted">by Don Pely · v0.6.0 · MIT License</p>
         <p>
-          A cross-platform system cleaner and disk analyzer. v0.5 reports
-          stale drivers, cleans Store apps, and runs the component store
-          cleanup — approve-first, nothing silent.
+          A cross-platform system cleaner and disk analyzer. v0.6 fixes
+          common clutter in one click and watches CPU, memory, and disk
+          live — approve-first, nothing silent.
         </p>
         <button
           className="btn"

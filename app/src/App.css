@@ -1106,6 +1106,52 @@ tr.picked td {
   overflow-y: auto;
 }
 
+/* ---------- v0.6: monitors theme ---------- */
+.theme-monitors {
+  --accent: #16a34a;
+  --accent2: #15803d;
+  --accent-rgb: 22, 163, 74;
+  --bg1: #f0fdf4;
+  --bg2: #dcfce7;
+}
+
+/* ---------- v0.6: monitors + fix ---------- */
+.bigpct {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bigpct .muted {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.fixgroup {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  background: #fbfaff;
+}
+
+.app.dark .fixgroup {
+  background: #10153a;
+}
+
+.fixgroup .check {
+  margin-top: 3px;
+}
+
+.fixgroup b {
+  font-size: 14px;
+}
+
 /* ---------- about ---------- */
 .about {
   max-width: 560px;
